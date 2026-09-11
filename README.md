@@ -65,7 +65,7 @@ Configure your environment variables:
 ```ini
 GMAIL_USER=your-actual-email@gmail.com
 GMAIL_APP_PASSWORD=xxxx-xxxx-xxxx-xxxx
-DEFAULT_FROM_NAME=Air Cargo Operations
+DEFAULT_FROM_NAME=Strathmore Executive Outreach
 PORT=3001
 DATABASE_URL=file:./dev.db
 APP_ENCRYPTION_KEY=your_secure_32_character_secret_key_here
@@ -129,7 +129,7 @@ npm test
 ### Test Coverage (25 Passing Tests)
 - **Spreadsheet Parsing**: CSV import, Excel import, header auto-detection, corrupt file handling.
 - **Row Validation & Deduplication**: RFC email check, missing field check, `keep_first` vs `remove_all_duplicates`, rejected CSV download.
-- **Template Engine**: Placeholder interpolation (`{{first name}}`, `{{awb}}`, etc.), missing token highlighting, data escaping, and HTML sanitization.
+- **Template Engine**: Placeholder interpolation (`{{first name}}`, `{{title}}`, `{{organization}}`, etc.), missing token highlighting, data escaping, and HTML sanitization.
 - **Approval Gate**: Test email requirement, typed `"SEND"` confirmation, 100-recipient limit enforcement.
 - **Queue Worker**: Idempotent dispatch, pause/resume transitions, suppression list skipping, and restart recovery.
 - **Secret Hygiene**: Masked email verification, credential non-disclosure.
