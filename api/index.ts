@@ -1,3 +1,7 @@
 import { app } from '../src/server/app.js';
 
-export default app;
+export default function handler(req: any, res: any) {
+  return app(req, res);
+}
+
+export { app };
