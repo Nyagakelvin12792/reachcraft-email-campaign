@@ -1,0 +1,128 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Campaign {
+  id               String         @id @default(cuid())
+  name             String
+  status           String         @default("DRAFT") // DRAFT, MAPPED, CONFIGURED, READY, SENDING, PAUSED, COMPLETED, CANCELLED, FAILED
+  originalFileName String?
+  maxRecipients    Int            @default(100)
+  totalUploaded    Int            @default(0)
+  readyCount       Int            @default(0)
+  rejectedCount    Int            @default(0)
+  excludedCount    Int            @default(0)
+  approvedCount    Int            @default(0)
+  testEmailAddress String?
+  testEmailSentAt  DateTime?
+  approvedAt       DateTime?
+  approvedBy       String?
+  sendDelayMs      Int            @default(2000)
+  optOutEnabled    Boolean        @default(true)
+  optOutText       String         @default("If you wish to opt out from future communications, please reply with 'UNSUBSCRIBE'.")
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  recipients       Recipient[]
+  template         Template?
+  sendJob          SendJob?
+  sendAttempts     SendAttempt[]
+  auditEvents      AuditEvent[]
+}
+
+model Recipient {
+  id                  String        @id @default(cuid())
+  campaignId          String
+  campaign            Campaign      @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  rowNumber           Int
+  email               String?
+  firstName           String?
+  lastName            String?
+  company             String?
+  phone               String?
+  awb                 String?
+  destination         String?
+  jobTitle            String?
+  customFields        String?       // Stored as JSON string
+  status              String        @default("READY") // READY, MISSING_EMAIL, INVALID_EMAIL, DUPLICATE, MISSING_REQUIRED, EXCLUDED, SUPPRESSED
+  rejectReason        String?
+  isExcluded          Boolean       @default(false)
+  previewSubject      String?
+  previewBodyText     String?
+  previewBodyHtml     String?
+  missingPlaceholders String?       // Stored as JSON string array
+  sentAt              DateTime?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  sendAttempts        SendAttempt[]
+}
+
+model Template {
+  id            String    @id @default(cuid())
+  campaignId    String    @unique
+  campaign      Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  senderName    String?
+  replyTo       String?
+  subject       String
+  bodyText      String
+  bodyHtml      String?
+  signature     String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model SendJob {
+  id              String    @id @default(cuid())
+  campaignId      String    @unique
+  campaign        Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  status          String    @default("QUEUED") // QUEUED, RUNNING, PAUSED, CANCELLED, COMPLETED, FAILED
+  totalRecipients Int       @default(0)
+  sentCount       Int       @default(0)
+  failedCount     Int       @default(0)
+  skippedCount    Int       @default(0)
+  startedAt       DateTime?
+  pausedAt        DateTime?
+  completedAt     DateTime?
+  lastError       String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model SendAttempt {
+  id                   String    @id @default(cuid())
+  campaignId           String
+  campaign             Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  recipientId          String
+  recipient            Recipient @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  maskedEmail          String
+  attemptNumber        Int       @default(1)
+  status               String    // SENT, FAILED, RETRYING, SKIPPED
+  smtpResponseCategory String?   // SUCCESS, AUTH_ERROR, QUOTA_ERROR, TEMP_FAILURE, PERM_FAILURE
+  smtpCode             Int?
+  responseMessage      String?
+  failureReason        String?
+  timestamp            DateTime  @default(now())
+}
+
+model SuppressionList {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  reason    String?
+  createdAt DateTime @default(now())
+}
+
+model AuditEvent {
+  id         String    @id @default(cuid())
+  campaignId String?
+  campaign   Campaign? @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  action     String
+  details    String?   // JSON string
+  ipAddress  String?
+  createdAt  DateTime  @default(now())
+}
