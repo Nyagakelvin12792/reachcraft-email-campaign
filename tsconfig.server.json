@@ -11,6 +11,6 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true
   },
-  "include": ["src/server/**/*", "src/worker/**/*", "prisma/**/*"],
+  "include": ["src/server/**/*", "src/worker/**/*", "prisma/**/*", "api/**/*"],
   "exclude": ["node_modules", "src/client/**/*", "tests/**/*"]
 }

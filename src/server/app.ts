@@ -21,18 +21,21 @@ app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
+app.get('/health', (_req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
 
-// Campaign & nested sub-routes
-app.use('/api/campaigns', campaignsRouter);
-app.use('/api/campaigns/:id', uploadRouter);
-app.use('/api/campaigns/:id', templatesRouter);
-app.use('/api/campaigns/:id', approvalRouter);
-app.use('/api/campaigns/:id', queueRouter);
-app.use('/api/campaigns/:id', reportsRouter);
+// Campaign & nested sub-routes (supports both /api/path and /path on Vercel)
+app.use(['/api/campaigns', '/campaigns'], campaignsRouter);
+app.use(['/api/campaigns/:id', '/campaigns/:id'], uploadRouter);
+app.use(['/api/campaigns/:id', '/campaigns/:id'], templatesRouter);
+app.use(['/api/campaigns/:id', '/campaigns/:id'], approvalRouter);
+app.use(['/api/campaigns/:id', '/campaigns/:id'], queueRouter);
+app.use(['/api/campaigns/:id', '/campaigns/:id'], reportsRouter);
 
 // Global feature routes
-app.use('/api/suppression', suppressionRouter);
-app.use('/api/settings', settingsRouter);
+app.use(['/api/suppression', '/suppression'], suppressionRouter);
+app.use(['/api/settings', '/settings'], settingsRouter);
 
 // Serve uploaded template images
 import path from 'path';
