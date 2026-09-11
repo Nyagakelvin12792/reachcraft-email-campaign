@@ -84,7 +84,7 @@ approvalRouter.patch('/recipients/:recipientId', async (req: Request, res: Respo
 
     const updatedEmail = data.email !== undefined ? data.email.trim() : existing.email;
     let status = existing.status;
-    let rejectReason = existing.rejectReason;
+    let rejectReason: string | null = existing.rejectReason;
 
     if (data.email !== undefined) {
       const emailCheck = validateEmail(updatedEmail || '');
@@ -93,7 +93,7 @@ approvalRouter.patch('/recipients/:recipientId', async (req: Request, res: Respo
         rejectReason = null;
       } else {
         status = 'INVALID_EMAIL';
-        rejectReason = emailCheck.reason;
+        rejectReason = emailCheck.reason || 'Invalid email address';
       }
     }
 

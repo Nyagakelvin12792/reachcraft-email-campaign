@@ -48,7 +48,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
   const getCampaignAction = (campaign: Campaign) => {
     switch (campaign.status) {
       case 'DRAFT':
-        return { label: 'Continue Upload', page: 'new-campaign' };
+        return { label: 'Resume Setup', page: 'new-campaign' };
       case 'MAPPED':
         return { label: 'Configure Template', page: 'template-editor' };
       case 'CONFIGURED':
@@ -77,7 +77,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         <div>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight">Campaign Dashboard</h1>
           <p className="text-sm text-slate-500 mt-1">
-            Manage personalized email campaigns sent via Gmail SMTP with persistent delivery gating.
+            Create, review, and track personalized email campaigns in one place.
           </p>
         </div>
         <div className="flex items-center space-x-3">

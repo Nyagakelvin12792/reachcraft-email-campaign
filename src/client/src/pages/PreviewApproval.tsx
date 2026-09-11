@@ -67,6 +67,7 @@ export const PreviewApproval: React.FC<PreviewApprovalProps> = ({ campaignId, on
   const [isApproveModalOpen, setIsApproveModalOpen] = useState(false);
   const [typedConfirmation, setTypedConfirmation] = useState('');
   const [isApproving, setIsApproving] = useState(false);
+  const [previewTab, setPreviewTab] = useState<'html' | 'text'>('html');
 
   useEffect(() => {
     loadCampaignData();
@@ -205,8 +206,9 @@ export const PreviewApproval: React.FC<PreviewApprovalProps> = ({ campaignId, on
   };
 
   const handleFinalApprove = async () => {
-    if (typedConfirmation.trim() !== 'SEND') {
-      alert("Please type 'SEND' in all capital letters to confirm authorization.");
+    const confirmation = typedConfirmation.trim().toUpperCase();
+    if (confirmation !== 'SEND') {
+      alert("Please type 'SEND' to confirm authorization.");
       return;
     }
 
@@ -458,12 +460,48 @@ export const PreviewApproval: React.FC<PreviewApprovalProps> = ({ campaignId, on
               </div>
 
               {/* Rendered Body */}
-              <div className="p-5 bg-slate-50 rounded-lg border border-slate-200 min-h-[160px] text-sm text-slate-800 whitespace-pre-wrap leading-relaxed">
-                {currentRecipient.previewBodyHtml ? (
-                  <div dangerouslySetInnerHTML={{ __html: currentRecipient.previewBodyHtml }} />
-                ) : (
-                  currentRecipient.previewBodyText
+              <div className="rounded-lg border border-slate-200 overflow-hidden bg-white shadow-2xs">
+                {currentRecipient.previewBodyHtml && (
+                  <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Preview Mode</span>
+                    <div className="flex bg-slate-200/80 p-0.5 rounded text-xs font-medium">
+                      <button
+                        type="button"
+                        onClick={() => setPreviewTab('html')}
+                        className={`px-3 py-1 rounded transition-colors ${
+                          previewTab === 'html'
+                            ? 'bg-white text-indigo-700 shadow-2xs font-semibold'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        🌐 Rich HTML
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPreviewTab('text')}
+                        className={`px-3 py-1 rounded transition-colors ${
+                          previewTab === 'text'
+                            ? 'bg-white text-indigo-700 shadow-2xs font-semibold'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        📄 Plain Text
+                      </button>
+                    </div>
+                  </div>
                 )}
+                <div className="p-5 min-h-[160px] text-sm text-slate-800">
+                  {currentRecipient.previewBodyHtml && previewTab === 'html' ? (
+                    <div
+                      className="email-html-preview max-w-full overflow-x-auto"
+                      dangerouslySetInnerHTML={{ __html: currentRecipient.previewBodyHtml }}
+                    />
+                  ) : (
+                    <div className="whitespace-pre-wrap leading-relaxed font-sans text-slate-800">
+                      {currentRecipient.previewBodyText}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -878,15 +916,31 @@ export const PreviewApproval: React.FC<PreviewApprovalProps> = ({ campaignId, on
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-1.5">
-              Type <span className="font-mono text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200">SEND</span> to confirm
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                Type <span className="font-mono text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200">SEND</span> to confirm
+              </label>
+              <button
+                type="button"
+                onClick={() => setTypedConfirmation('SEND')}
+                className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 underline decoration-indigo-300 cursor-pointer"
+              >
+                Insert &quot;SEND&quot;
+              </button>
+            </div>
             <input
               type="text"
               value={typedConfirmation}
-              onChange={(e) => setTypedConfirmation(e.target.value)}
-              placeholder="Type SEND here"
+              onChange={(e) => setTypedConfirmation(e.target.value.toUpperCase())}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && typedConfirmation.trim().toUpperCase() === 'SEND' && !isApproving) {
+                  e.preventDefault();
+                  handleFinalApprove();
+                }
+              }}
+              placeholder="SEND"
               className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 font-mono text-sm uppercase tracking-wider focus:ring-2 focus:ring-rose-500 focus:border-rose-500"
+              autoFocus
             />
           </div>
 
@@ -901,7 +955,7 @@ export const PreviewApproval: React.FC<PreviewApprovalProps> = ({ campaignId, on
             <button
               type="button"
               onClick={handleFinalApprove}
-              disabled={isApproving || typedConfirmation.trim() !== 'SEND'}
+              disabled={isApproving || typedConfirmation.trim().toUpperCase() !== 'SEND'}
               className="inline-flex items-center px-5 py-2.5 rounded-lg text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 disabled:opacity-40 disabled:cursor-not-allowed shadow-sm transition-all"
             >
               {isApproving ? (

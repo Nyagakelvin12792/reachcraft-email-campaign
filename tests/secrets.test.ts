@@ -21,4 +21,15 @@ describe('Secret Protection & Credential Hygiene', () => {
     expect(res.body.GMAIL_APP_PASSWORD).toBeUndefined();
     expect(res.body.isAppPasswordConfigured).toBeDefined();
   });
+
+  it('automatically embeds local images as inline CID attachments for email clients', async () => {
+    const { processEmailImages } = await import('../src/server/services/mailer.js');
+    const inputHtml = '<p>Hello</p><img src="/api/images/fiscal_decentralization_banner.png" alt="Banner" />';
+    const result = processEmailImages(inputHtml);
+
+    expect(result.html).toContain('src="cid:fiscal_decentralization_banner_png"');
+    expect(result.attachments.length).toBe(1);
+    expect(result.attachments[0].cid).toBe('fiscal_decentralization_banner_png');
+    expect(result.attachments[0].filename).toBe('fiscal_decentralization_banner.png');
+  });
 });

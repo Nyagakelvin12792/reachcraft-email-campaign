@@ -1,4 +1,6 @@
 import nodemailer, { Transporter } from 'nodemailer';
+import path from 'path';
+import fs from 'fs';
 import { config, maskEmail } from '../config.js';
 
 export type SmtpCategory =
@@ -177,15 +179,109 @@ export async function verifySmtpConnection(): Promise<{ connected: boolean; cate
   }
 }
 
+export interface ProcessedHtmlResult {
+  html: string;
+  attachments: Array<{
+    filename: string;
+    path: string;
+    cid: string;
+  }>;
+}
+
+/**
+ * Automatically scans HTML for local image references (/api/images/..., /images/..., or cid:...)
+ * and converts them into inline MIME CID attachments for Nodemailer.
+ * This guarantees images load reliably in Gmail, Outlook, Apple Mail, and mobile clients
+ * without requiring external hosting or public URLs.
+ */
+export function processEmailImages(html: string): ProcessedHtmlResult {
+  if (!html) return { html, attachments: [] };
+
+  const attachments: Array<{ filename: string; path: string; cid: string }> = [];
+  const addedCids = new Set<string>();
+
+  const searchDirs = [
+    path.resolve(process.cwd(), 'uploads/images'),
+    path.resolve(process.cwd(), 'src/client/public/images'),
+    path.resolve(process.cwd(), 'dist/client/images'),
+  ];
+
+  // Matches src="(/api/images/|/images/|cid:)?..." with optional localhost host
+  const imgSrcRegex = /(<img\b[^>]*?\bsrc=["'])(https?:\/\/[^"'/]+)?(?:\/api\/images\/|\/images\/|cid:)?([^"'>\s?#]+)(["'][^>]*?>)/gi;
+
+  const transformedHtml = html.replace(imgSrcRegex, (match, prefix, host, rawFilename, suffix) => {
+    // If it's a public external host (not localhost or 127.0.0.1), leave it as an external image
+    if (host && !host.includes('localhost') && !host.includes('127.0.0.1')) {
+      return match;
+    }
+
+    const cleanName = path.basename(rawFilename);
+    const candidateNames = [
+      cleanName,
+      `${cleanName}.png`,
+      `${cleanName}.jpg`,
+      `${cleanName}.jpeg`,
+      `${cleanName}.gif`,
+      `${cleanName}.webp`,
+    ];
+
+    let foundPath: string | null = null;
+    let finalFilename = cleanName;
+
+    for (const dir of searchDirs) {
+      for (const candidate of candidateNames) {
+        const fullPath = path.join(dir, candidate);
+        if (fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) {
+          foundPath = fullPath;
+          finalFilename = candidate;
+          break;
+        }
+      }
+      if (foundPath) break;
+    }
+
+    if (!foundPath) {
+      // Image file not found locally; preserve original
+      return match;
+    }
+
+    // Clean CID identifier for email client compatibility
+    const cid = finalFilename.replace(/[^a-zA-Z0-9_-]/g, '_');
+
+    if (!addedCids.has(cid)) {
+      addedCids.add(cid);
+      attachments.push({
+        filename: finalFilename,
+        path: foundPath,
+        cid,
+      });
+    }
+
+    return `${prefix}cid:${cid}${suffix}`;
+  });
+
+  return { html: transformedHtml, attachments };
+}
+
 /**
  * Sends a single personalized email.
  * Recipient emails are masked in logs. Passwords and full contents are NEVER logged.
+ * Automatically embeds local images as inline CID attachments so they render for recipients.
  */
 export async function sendPersonalizedEmail(options: SendMailOptions): Promise<SendMailResult> {
   const maskedTo = maskEmail(options.to);
   const fromName = options.senderName?.trim() || config.DEFAULT_FROM_NAME;
   const fromAddress = config.GMAIL_USER || 'campaign@localhost';
   const fromHeader = `"${fromName}" <${fromAddress}>`;
+
+  let finalHtml = options.html;
+  let attachments: Array<{ filename: string; path: string; cid: string }> = [];
+
+  if (options.html) {
+    const processed = processEmailImages(options.html);
+    finalHtml = processed.html;
+    attachments = processed.attachments;
+  }
 
   const mailOptions: nodemailer.SendMailOptions = {
     from: fromHeader,
@@ -195,15 +291,19 @@ export async function sendPersonalizedEmail(options: SendMailOptions): Promise<S
     replyTo: options.replyTo || fromAddress,
   };
 
-  if (options.html) {
-    mailOptions.html = options.html;
+  if (finalHtml) {
+    mailOptions.html = finalHtml;
+  }
+
+  if (attachments.length > 0) {
+    mailOptions.attachments = attachments;
   }
 
   try {
     const transporter = getTransporter();
     const info = await transporter.sendMail(mailOptions);
 
-    console.log(`✅ Mail dispatched successfully to ${maskedTo} [MessageId: ${info.messageId || 'MOCK-ID'}]`);
+    console.log(`✅ Mail dispatched successfully to ${maskedTo} [MessageId: ${info.messageId || 'MOCK-ID'}] (${attachments.length} inline images attached)`);
     return {
       success: true,
       messageId: info.messageId || `mock-${Date.now()}`,

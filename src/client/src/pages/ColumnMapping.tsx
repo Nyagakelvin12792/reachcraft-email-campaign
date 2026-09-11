@@ -36,6 +36,18 @@ export const ColumnMapping: React.FC<ColumnMappingProps> = ({ campaignId, onNavi
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const updateMapping = (field: keyof typeof mapping, value: string) => {
+    setMapping((current) => ({ ...current, [field]: value }));
+    setValidationSummary(null);
+    setError(null);
+  };
+
+  const updateDedupeStrategy = (strategy: typeof dedupeStrategy) => {
+    setDedupeStrategy(strategy);
+    setValidationSummary(null);
+    setError(null);
+  };
+
   useEffect(() => {
     loadData();
   }, [campaignId]);
@@ -136,9 +148,9 @@ export const ColumnMapping: React.FC<ColumnMappingProps> = ({ campaignId, onNavi
         <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-8">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 border-b border-slate-100 gap-4">
             <div>
-              <h2 className="text-xl font-black text-slate-900">Step 2: Column Mapping & Validation</h2>
+              <h2 className="text-xl font-black text-slate-900">Step 2: Check Your Columns</h2>
               <p className="text-sm text-slate-500 mt-1">
-                Map spreadsheet columns to campaign fields and define duplicate handling rules.
+                Confirm where each contact detail belongs, then check the rows for errors.
               </p>
             </div>
             {campaign?.originalFileName && (
@@ -167,7 +179,7 @@ export const ColumnMapping: React.FC<ColumnMappingProps> = ({ campaignId, onNavi
                 <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
                   <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center space-x-2">
                     <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                    <span>Detected Spreadsheet Data (First Row Preview)</span>
+                    <span>Spreadsheet preview</span>
                   </h3>
                   <div className="overflow-x-auto">
                     <table className="w-full text-xs text-left border-collapse bg-white rounded-lg overflow-hidden border border-slate-200">
@@ -181,13 +193,15 @@ export const ColumnMapping: React.FC<ColumnMappingProps> = ({ campaignId, onNavi
                         </tr>
                       </thead>
                       <tbody>
-                        <tr className="border-b border-slate-100 text-slate-800">
-                          {detectedColumns.map((col) => (
-                            <td key={col} className="px-3 py-2 border-r border-slate-100 last:border-0 font-mono text-[11px] whitespace-nowrap">
-                              {sampleRows[0][col] || '-'}
-                            </td>
-                          ))}
-                        </tr>
+                        {sampleRows.map((row, rowIndex) => (
+                          <tr key={rowIndex} className="border-b border-slate-100 last:border-0 text-slate-800">
+                            {detectedColumns.map((col) => (
+                              <td key={col} className="px-3 py-2 border-r border-slate-100 last:border-0 font-mono text-[11px] whitespace-nowrap">
+                                {row[col] || '-'}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
                       </tbody>
                     </table>
                   </div>
@@ -198,28 +212,10 @@ export const ColumnMapping: React.FC<ColumnMappingProps> = ({ campaignId, onNavi
               <div className="p-4 rounded-xl bg-indigo-50/70 border border-indigo-200 text-xs text-slate-700 space-y-2">
                 <div className="flex items-center space-x-2 font-bold text-indigo-950 uppercase tracking-wider text-[11px]">
                   <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-                  <span>What Should Appear in This Section?</span>
+                  <span>Most columns are matched automatically</span>
                 </div>
                 <p className="leading-relaxed">
-                  This section links each column from your spreadsheet to the fields you can use in your email. 
-                  ReachCraft has already <strong>auto-detected and pre-selected</strong> your columns based on your spreadsheet headers:
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 font-medium text-slate-800">
-                  <div className="bg-white p-2.5 rounded-lg border border-indigo-100">
-                    <span className="text-indigo-600 font-bold block">1. Recipient Mailbox</span>
-                    <span><strong>Email address</strong> &rarr; Where emails get delivered.</span>
-                  </div>
-                  <div className="bg-white p-2.5 rounded-lg border border-indigo-100">
-                    <span className="text-indigo-600 font-bold block">2. Personal Greeting</span>
-                    <span><strong>First name</strong> &rarr; Used in greetings like <em>Hello Alfred,</em>.</span>
-                  </div>
-                  <div className="bg-white p-2.5 rounded-lg border border-indigo-100">
-                    <span className="text-indigo-600 font-bold block">3. Context Fields</span>
-                    <span><strong>Job title</strong>, <strong>Company</strong>, <strong>Phone</strong> &rarr; Optional details.</span>
-                  </div>
-                </div>
-                <p className="text-slate-500 text-[11px] pt-1">
-                  If the dropdowns below match your columns, everything is good to go! Scroll down and click <strong>"Run Row Validation & Deduplication"</strong>.
+                  Check the selections below. Email is required. Every other field is optional and becomes available for personalization.
                 </p>
               </div>
 
@@ -249,7 +245,7 @@ export const ColumnMapping: React.FC<ColumnMappingProps> = ({ campaignId, onNavi
                     {detectedColumns.length > 0 ? (
                       <select
                         value={mapping.email}
-                        onChange={(e) => setMapping({ ...mapping, email: e.target.value })}
+                        onChange={(e) => updateMapping('email', e.target.value)}
                         className="w-full px-3 py-2 rounded-md border border-indigo-300 text-sm font-semibold bg-white text-slate-900 focus:ring-2 focus:ring-indigo-500"
                       >
                         <option value="">-- Select Email Column --</option>
@@ -263,7 +259,7 @@ export const ColumnMapping: React.FC<ColumnMappingProps> = ({ campaignId, onNavi
                       <input
                         type="text"
                         value={mapping.email}
-                        onChange={(e) => setMapping({ ...mapping, email: e.target.value })}
+                        onChange={(e) => updateMapping('email', e.target.value)}
                         placeholder="e.g. Email address"
                         className="w-full px-3 py-2 rounded-md border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-500"
                       />
@@ -281,7 +277,7 @@ export const ColumnMapping: React.FC<ColumnMappingProps> = ({ campaignId, onNavi
                     {detectedColumns.length > 0 ? (
                       <select
                         value={mapping.firstName}
-                        onChange={(e) => setMapping({ ...mapping, firstName: e.target.value })}
+                        onChange={(e) => updateMapping('firstName', e.target.value)}
                         className="w-full px-3 py-2 rounded-md border border-slate-300 text-sm bg-white text-slate-900 focus:ring-2 focus:ring-indigo-500"
                       >
                         <option value="">-- Do not map --</option>
@@ -295,7 +291,7 @@ export const ColumnMapping: React.FC<ColumnMappingProps> = ({ campaignId, onNavi
                       <input
                         type="text"
                         value={mapping.firstName}
-                        onChange={(e) => setMapping({ ...mapping, firstName: e.target.value })}
+                        onChange={(e) => updateMapping('firstName', e.target.value)}
                         placeholder="e.g. First name"
                         className="w-full px-3 py-2 rounded-md border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-500"
                       />
@@ -313,7 +309,7 @@ export const ColumnMapping: React.FC<ColumnMappingProps> = ({ campaignId, onNavi
                     {detectedColumns.length > 0 ? (
                       <select
                         value={mapping.lastName}
-                        onChange={(e) => setMapping({ ...mapping, lastName: e.target.value })}
+                        onChange={(e) => updateMapping('lastName', e.target.value)}
                         className="w-full px-3 py-2 rounded-md border border-slate-300 text-sm bg-white text-slate-900 focus:ring-2 focus:ring-indigo-500"
                       >
                         <option value="">-- Do not map --</option>
@@ -327,7 +323,7 @@ export const ColumnMapping: React.FC<ColumnMappingProps> = ({ campaignId, onNavi
                       <input
                         type="text"
                         value={mapping.lastName}
-                        onChange={(e) => setMapping({ ...mapping, lastName: e.target.value })}
+                        onChange={(e) => updateMapping('lastName', e.target.value)}
                         placeholder="e.g. Last name"
                         className="w-full px-3 py-2 rounded-md border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-500"
                       />
@@ -345,7 +341,7 @@ export const ColumnMapping: React.FC<ColumnMappingProps> = ({ campaignId, onNavi
                     {detectedColumns.length > 0 ? (
                       <select
                         value={mapping.jobTitle}
-                        onChange={(e) => setMapping({ ...mapping, jobTitle: e.target.value })}
+                        onChange={(e) => updateMapping('jobTitle', e.target.value)}
                         className="w-full px-3 py-2 rounded-md border border-slate-300 text-sm bg-white text-slate-900 focus:ring-2 focus:ring-indigo-500"
                       >
                         <option value="">-- Do not map --</option>
@@ -359,7 +355,7 @@ export const ColumnMapping: React.FC<ColumnMappingProps> = ({ campaignId, onNavi
                       <input
                         type="text"
                         value={mapping.jobTitle}
-                        onChange={(e) => setMapping({ ...mapping, jobTitle: e.target.value })}
+                        onChange={(e) => updateMapping('jobTitle', e.target.value)}
                         placeholder="e.g. Job title"
                         className="w-full px-3 py-2 rounded-md border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-500"
                       />
@@ -377,7 +373,7 @@ export const ColumnMapping: React.FC<ColumnMappingProps> = ({ campaignId, onNavi
                     {detectedColumns.length > 0 ? (
                       <select
                         value={mapping.company}
-                        onChange={(e) => setMapping({ ...mapping, company: e.target.value })}
+                        onChange={(e) => updateMapping('company', e.target.value)}
                         className="w-full px-3 py-2 rounded-md border border-slate-300 text-sm bg-white text-slate-900 focus:ring-2 focus:ring-indigo-500"
                       >
                         <option value="">-- Do not map --</option>
@@ -391,7 +387,7 @@ export const ColumnMapping: React.FC<ColumnMappingProps> = ({ campaignId, onNavi
                       <input
                         type="text"
                         value={mapping.company}
-                        onChange={(e) => setMapping({ ...mapping, company: e.target.value })}
+                        onChange={(e) => updateMapping('company', e.target.value)}
                         placeholder="e.g. Company name"
                         className="w-full px-3 py-2 rounded-md border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-500"
                       />
@@ -409,7 +405,7 @@ export const ColumnMapping: React.FC<ColumnMappingProps> = ({ campaignId, onNavi
                     {detectedColumns.length > 0 ? (
                       <select
                         value={mapping.phone}
-                        onChange={(e) => setMapping({ ...mapping, phone: e.target.value })}
+                        onChange={(e) => updateMapping('phone', e.target.value)}
                         className="w-full px-3 py-2 rounded-md border border-slate-300 text-sm bg-white text-slate-900 focus:ring-2 focus:ring-indigo-500"
                       >
                         <option value="">-- Do not map --</option>
@@ -423,7 +419,7 @@ export const ColumnMapping: React.FC<ColumnMappingProps> = ({ campaignId, onNavi
                       <input
                         type="text"
                         value={mapping.phone}
-                        onChange={(e) => setMapping({ ...mapping, phone: e.target.value })}
+                        onChange={(e) => updateMapping('phone', e.target.value)}
                         placeholder="e.g. Phone number"
                         className="w-full px-3 py-2 rounded-md border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-500"
                       />
@@ -460,7 +456,7 @@ export const ColumnMapping: React.FC<ColumnMappingProps> = ({ campaignId, onNavi
                       type="radio"
                       name="dedupe"
                       checked={dedupeStrategy === 'keep_first'}
-                      onChange={() => setDedupeStrategy('keep_first')}
+                      onChange={() => updateDedupeStrategy('keep_first')}
                       className="mt-1 text-indigo-600 focus:ring-indigo-500"
                     />
                     <div className="ml-3">
@@ -485,7 +481,7 @@ export const ColumnMapping: React.FC<ColumnMappingProps> = ({ campaignId, onNavi
                       type="radio"
                       name="dedupe"
                       checked={dedupeStrategy === 'allow_all'}
-                      onChange={() => setDedupeStrategy('allow_all')}
+                      onChange={() => updateDedupeStrategy('allow_all')}
                       className="mt-1 text-emerald-600 focus:ring-emerald-500"
                     />
                     <div className="ml-3">
@@ -509,7 +505,7 @@ export const ColumnMapping: React.FC<ColumnMappingProps> = ({ campaignId, onNavi
                       type="radio"
                       name="dedupe"
                       checked={dedupeStrategy === 'remove_all_duplicates'}
-                      onChange={() => setDedupeStrategy('remove_all_duplicates')}
+                      onChange={() => updateDedupeStrategy('remove_all_duplicates')}
                       className="mt-1 text-indigo-600 focus:ring-indigo-500"
                     />
                     <div className="ml-3">
@@ -531,7 +527,7 @@ export const ColumnMapping: React.FC<ColumnMappingProps> = ({ campaignId, onNavi
                   className="w-full py-3 px-4 border border-indigo-600 rounded-lg text-sm font-bold text-indigo-600 hover:bg-indigo-50 disabled:opacity-50 transition-colors flex items-center justify-center space-x-2"
                 >
                   <CheckCircle2 className={`w-4 h-4 ${isValidating ? 'animate-spin' : ''}`} />
-                  <span>{isValidating ? 'Validating Spreadsheet Rows...' : 'Run Row Validation & Deduplication'}</span>
+                  <span>{isValidating ? 'Checking Contact Rows...' : 'Check Contacts'}</span>
                 </button>
               </div>
 

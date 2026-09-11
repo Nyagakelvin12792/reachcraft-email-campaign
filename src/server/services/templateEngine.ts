@@ -142,7 +142,7 @@ const SANITIZE_OPTIONS: sanitizeHtml.IOptions = {
     th: ['style', 'class', 'colspan', 'rowspan', 'width', 'align', 'valign'],
     tr: ['style', 'class'],
   },
-  allowedSchemes: ['http', 'https', 'mailto', 'cid'],
+  allowedSchemes: ['http', 'https', 'mailto', 'cid', 'data'],
 };
 
 /**

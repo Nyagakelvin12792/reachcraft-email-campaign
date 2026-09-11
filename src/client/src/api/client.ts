@@ -167,6 +167,13 @@ export const api = {
     });
   },
 
+  async updateCampaign(id: string, payload: { name?: string; sendDelayMs?: number }): Promise<{ campaign: Campaign }> {
+    return request(`/campaigns/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+  },
+
   async deleteCampaign(id: string): Promise<{ message: string }> {
     return request(`/campaigns/${id}`, { method: 'DELETE' });
   },

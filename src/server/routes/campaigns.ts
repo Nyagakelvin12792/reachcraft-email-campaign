@@ -80,6 +80,45 @@ campaignsRouter.post('/', async (req: Request, res: Response, next: NextFunction
   }
 });
 
+// PATCH editable campaign setup fields before approval
+const updateCampaignSchema = z.object({
+  name: z.string().trim().min(1, 'Campaign name is required').max(100).optional(),
+  sendDelayMs: z.number().min(500).max(10000).optional(),
+}).refine((data) => data.name !== undefined || data.sendDelayMs !== undefined, {
+  message: 'Provide at least one campaign field to update',
+});
+
+campaignsRouter.patch('/:id', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const parsed = updateCampaignSchema.parse(req.body);
+    const existing = await prisma.campaign.findUnique({ where: { id } });
+
+    if (!existing) {
+      res.status(404).json({ error: 'Campaign not found' });
+      return;
+    }
+
+    if (['SENDING', 'COMPLETED', 'CANCELLED'].includes(existing.status)) {
+      res.status(409).json({ error: 'This campaign can no longer be edited.' });
+      return;
+    }
+
+    const campaign = await prisma.campaign.update({
+      where: { id },
+      data: parsed,
+    });
+
+    await logAuditEvent('CAMPAIGN_SETUP_UPDATED', {
+      fields: Object.keys(parsed),
+    }, campaign.id, req.ip);
+
+    res.json({ campaign });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // DELETE campaign
 campaignsRouter.delete('/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {

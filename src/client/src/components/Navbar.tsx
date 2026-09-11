@@ -30,7 +30,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate }) => {
             <span className="tracking-tight text-slate-900 font-extrabold text-xl">Reach<span className="text-indigo-600">Craft</span></span>
           </button>
 
-          <nav className="flex space-x-1">
+          <nav className="hidden md:flex space-x-1">
             <button
               onClick={() => onNavigate('dashboard')}
               className={`px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center space-x-1.5 ${
@@ -64,7 +64,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate }) => {
               }`}
             >
               <Settings className="w-4 h-4" />
-              <span>Settings & Suppression</span>
+              <span>Settings</span>
             </button>
           </nav>
         </div>
@@ -72,7 +72,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate }) => {
         <div className="flex items-center space-x-4">
           {/* SMTP Status Indicator */}
           {settings && (
-            <div className="flex items-center space-x-2 px-3 py-1.5 rounded-full bg-slate-100 border border-slate-200 text-xs">
+            <div className="hidden xl:flex items-center space-x-2 px-3 py-1.5 rounded-full bg-slate-100 border border-slate-200 text-xs">
               {settings.isAppPasswordConfigured && !settings.isMockMode ? (
                 <>
                   <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />

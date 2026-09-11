@@ -16,3 +16,6 @@ uploads/images/*
 coverage
 .vscode/
 .idea/
+scratch/
+*.tmp
+inspect_campaign.js

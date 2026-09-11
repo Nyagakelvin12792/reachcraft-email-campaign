@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { api, Template, Campaign, Recipient } from '../api/client.js';
 import { Stepper } from '../components/Stepper.js';
+import { STRATHMORE_BODY_TEXT, STRATHMORE_MASTER_HTML } from '../constants/strathmoreTemplate.js';
 
 interface TemplateEditorProps {
   campaignId: string;
@@ -77,9 +78,9 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({ campaignId, onNa
         setSampleRecipient(readyRec);
 
         const tokens = new Set(availableTokens);
-        if (sample.customFields) {
+        if (readyRec.customFields) {
           try {
-            const custom = JSON.parse(sample.customFields);
+            const custom = JSON.parse(readyRec.customFields);
             Object.keys(custom).forEach((k) => {
               const cleaned = k.toLowerCase().trim();
               if (cleaned && !cleaned.startsWith('__empty')) {
@@ -96,8 +97,8 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({ campaignId, onNa
         setSenderName(tempRes.template.senderName || '');
         setReplyTo(tempRes.template.replyTo || '');
         setSubject(tempRes.template.subject || '');
-        setBodyText(tempRes.template.bodyText || '');
-        setBodyHtml(tempRes.template.bodyHtml || '');
+        setBodyText(tempRes.template.bodyText || STRATHMORE_BODY_TEXT);
+        setBodyHtml(tempRes.template.bodyHtml || STRATHMORE_MASTER_HTML);
         setSignature(tempRes.template.signature || '');
       } else {
         // Set friendly professional initial template draft matching the spreadsheet
@@ -139,8 +140,9 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({ campaignId, onNa
   };
 
   const convertTextToHtml = () => {
-    const generated = generateHtmlFromBody(bodyText);
-    setBodyHtml(generated);
+    if (!bodyHtml || bodyHtml.trim().length === 0) {
+      setBodyHtml(generateHtmlFromBody(bodyText));
+    }
     setActiveTab('html');
   };
 
@@ -227,126 +229,10 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({ campaignId, onNa
   const applyPreset = (presetType: 'strathmore' | 'professional' | 'webinar' | 'brief') => {
     if (presetType === 'strathmore') {
       const subjectLine = 'Invitation: Fiscal Decentralization Executive Programme for {{first name}}';
-      const body = `Dear {{first name}},
-
-Warm greetings from Strathmore University Business School!
-
-We would like to share an important update and formal invitation regarding the programme previously communicated as the Devolution and Public Finance Management Programme, scheduled for 16th–20th November 2026.
-
-Following a review of the programme structure and delivery arrangements, we have made the following updates to strengthen the executive learning experience and better align the programme with its broader focus on fiscal decentralization:
-
-• New Programme Title: Fiscal Decentralization Executive Programme
-• Venue: Naivasha
-• Programme Investment: KES 150,000
-• Programme Dates: 16th–20th November 2026
-
-The adjustment in venue and investment reflects the enhanced executive learning and residential experience being planned, including a more conducive environment for strategic discussions, peer engagement, and practical learning. We apologize for any inconvenience these changes may cause and sincerely appreciate your understanding.
-
-We are pleased to invite you to join us for this programme. To enroll, please reserve your slot by submitting your application via the link below:
-👉 Application Link: https://sbs.strathmore.edu/programme/public-finance-management-programme/
-
-Please see the brochure link below:
-📄 Download Programme Brochure: https://drive.google.com/file/d/1w0AmEnS2wy0Dn35yUt98Fu1LoueC8qsO/view?usp=sharing
-
-Join us to gain practical knowledge of Kenya’s devolved system of governance, the budget-making process, the roles of the various institutions and actors, and the mechanics of service delivery.
-
----
-Introduction
-Greetings from Strathmore University Business School,
-
-This Executive Education Programme aims to bridge the knowledge gap in devolution and public finance management (PFM) for key decision-makers and other key stakeholders in Kenya’s decentralization landscape. Targeting National and County government officials, development sector professionals, and media practitioners (especially editors).
-
-The program explores the interface and how these systems work together to impact service delivery and governance. Participants gain practical knowledge of Kenya’s devolved system of governance, the budget-making process, the roles of the various institutions and actors, and the mechanics of service delivery, ultimately equipping them to evaluate the effectiveness of devolution in its contribution to political, economic, and governance outcomes.
-
-The programme is a partnership between The Institute of Public Policy & Governance (IPPG) at the Strathmore University Business School (SBS) and Bajeti Hub.
-
----
-Programme Objectives
-By participating in this program, you will:
-1. Gain a comprehensive understanding of the objects and principles of the devolved system of government.
-2. Appreciate the public financial management architecture and principles within the Kenyan context of the devolved system of government.
-3. Develop the ability to navigate the complexity of systems, structures, processes, and decisions of actors involved in devolution and PFM, fostering progressive and impactful collaborations.
-4. Understand the budgeting process to make informed fiscal decisions that drive positive outcomes within a devolved public finance environment.
-5. Gain an outlook on the governance nuances, including challenges and opportunities associated with devolution in Kenya.
-
----
-Target Participants
-This Executive Programme is designed for high-level decision-makers who play a critical role in Kenya's devolution and public finance management (PFM) landscape:
-• National and County Government: Senior government officials, including Principal Secretaries (PSs), Directors, and Senior Managers at both levels of government.
-• Development Sector: Actors working within Civil Society Organizations (CSOs) and development aid agencies.
-• Political class: Members of Parliament (MPs), Senators, and Members of County Assemblies (MCAs).
-• Media: Editors and journalists from various media outlets.
-
----
-Key Focus Areas
-• Foundation principles and the architecture of PFM in Kenya’s devolved system of government.
-• The budget making process; policy & legal framework, institutions, actors, tools and techniques.
-• Budget oversight, accountability, citizen engagement, and audit institutions.
-• Role of International actors/global factors affecting devolution and PFM in Kenya.
-• Measuring and tracking results in devolution and PFM.
-
----
-Learning Outcomes
-By participating in this programme, you will:
-• Gain a comprehensive understanding of the objects and principles of the devolved system of government.
-• Appreciate the public financial management architecture and principles within the Kenyan context of the devolved system of government.
-• Develop the ability to navigate the complexity of systems, structures, processes, and decisions of actors involved in devolution and PFM, fostering progressive and impactful collaborations.
-• Understand the budgeting process to make informed fiscal decisions that drive positive outcomes within a devolved public finance environment.
-• Gain an outlook on the governance nuances, including challenges and opportunities associated with devolution in Kenya.
-• Develop the skills to evaluate the effectiveness of devolution and PFM, both broadly and within one's specific area of work, ensuring impactful results.
-
----
-Faculty
-The programme is delivered by a high-powered faculty team consisting of academics & practitioners. As a result, classroom discussions provide conceptual frameworks for effective decision making, along with practical tools for real-life implementation.
-
-Dr. Abraham Rugo, Public Finance Expert (Course Lead)
-Dr Abraham Rugo is the country manager and executive director at Bajeti Hub. Abraham has worked in the capacity of a leader, speaker and governance practitioner for the last 15 years. He engages in analysis, training and advocacy for better public finance management and service delivery in devolved systems.
-Profile: https://sbs.strathmore.edu/strathmore-institute-for-public-policy-and-governance-2/#tab-16e52493efa3893b8b0
-
----
-Programme Delivery
-The delivery of the course combines expert-led lectures, strategic discussions, and real-world case studies, all facilitated by renowned policy and leadership professionals. Through the case methodology, participants delve into practical scenarios, fostering collaborative problem-solving.
-
-Developing Great African Leaders
-
----
-Your Investment
-• Fee: Kshs. 150,000
-• Programme Dates: 16 - 20 November 2026
-• Venue: Naivasha
-(This covers tuition fees, course materials, accommodation and daytime meals during the modules)
-
----
-Frequently Asked Questions
-• What is the cancellation policy? Cancellations made less than 2 weeks to the commencement of the training will be subjected to a penalty of 25% of the total programme fee.
-• What are the payment terms? Strathmore University Business School accepts both cheques and M-Pesa payments (Use PayBill No: 893801).
-
----
-How to Apply
-Ready to take your leadership to the next level? Applying is simple:
-• Online application form: https://sbs.strathmore.edu/sippg-application-form/
-• Download brochure: https://drive.google.com/file/d/1w0AmEnS2wy0Dn35yUt98Fu1LoueC8qsO/view?usp=sharing
-
-Spaces are limited, so don’t miss out! Register now and secure your spot in the programme:
-👉 Register Now: https://sbs.strathmore.edu/sippg-application-form/
-
----
-Contacts
-For more information on the programme, contact Silvia on:
-Email: smukami@strathmore.edu / eepolicy@strathmore.edu
-Tel: +254 (0) 703 034 414
-Cell: +254 (0) 797 654 885
-Visit: https://www.sbs.strathmore.edu for more details.
-
-Copyright © All Rights Reserved.
-Ole Sangale Road, Madaraka Estate,
-P. O. Box 59857 - 00200, City Square Nairobi Kenya.
-Tel: +254 703 034 414/6/7`;
-
       setSubject(subjectLine);
-      setBodyText(body);
-      setBodyHtml(generateHtmlFromBody(body));
-      setSignature(''); // Signature is already embedded at the bottom of the body text!
+      setBodyText(STRATHMORE_BODY_TEXT);
+      setBodyHtml(STRATHMORE_MASTER_HTML);
+      setSignature(''); // Signature is already embedded in the rich HTML and body text
       setSenderName('Strathmore University Business School');
       setReplyTo('smukami@strathmore.edu');
     } else if (presetType === 'webinar') {
@@ -449,7 +335,7 @@ Tel: +254 703 034 414/6/7`;
         replyTo: replyTo.trim(),
         subject: subject.trim(),
         bodyText: bodyText.trim(),
-        bodyHtml: bodyHtml.trim() ? bodyHtml.trim() : null,
+        bodyHtml: bodyHtml.trim() ? bodyHtml.trim() : STRATHMORE_MASTER_HTML,
         signature: signature.trim() ? signature.trim() : null,
       });
 

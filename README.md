@@ -36,7 +36,18 @@ A production-grade, secure, desktop-first web application designed for personali
 - **Database**: SQLite with Prisma ORM
 - **Spreadsheet Engine**: SheetJS (`xlsx`) supporting `.csv`, `.xlsx`, and `.xls`
 - **Mail Transport**: Nodemailer (Gmail SMTP SSL on port 465)
-- **Testing**: Vitest, Supertest (25 comprehensive unit and integration tests)
+- **Testing**: Vitest, Supertest (31 unit and integration tests)
+
+---
+
+## Contact Setup Experience
+
+- Paste rows directly from Excel or Google Sheets, with contact and column counts shown before submission.
+- Upload CSV, XLSX, or XLS files through the file picker or drag and drop.
+- Resume a saved draft without creating a duplicate campaign after an upload error.
+- Refresh the browser or use its Back button without losing the active campaign step.
+- Review three sample rows, confirm automatic column matching, then validate every contact.
+- Change a mapping or duplicate rule and the previous validation result is cleared automatically.
 
 ---
 
@@ -126,7 +137,7 @@ cd email-campaign-app
 npm test
 ```
 
-### Test Coverage (25 Passing Tests)
+### Test Coverage (31 Passing Tests)
 - **Spreadsheet Parsing**: CSV import, Excel import, header auto-detection, corrupt file handling.
 - **Row Validation & Deduplication**: RFC email check, missing field check, `keep_first` vs `remove_all_duplicates`, rejected CSV download.
 - **Template Engine**: Placeholder interpolation (`{{first name}}`, `{{title}}`, `{{organization}}`, etc.), missing token highlighting, data escaping, and HTML sanitization.

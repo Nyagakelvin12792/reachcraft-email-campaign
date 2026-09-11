@@ -7,35 +7,53 @@ interface StepperProps {
 }
 
 const steps = [
-  { step: 1, title: 'Upload Spreadsheet', icon: Upload },
-  { step: 2, title: 'Map Columns', icon: Columns },
-  { step: 3, title: 'Email Template', icon: FileEdit },
-  { step: 4, title: 'Preview & Approval', icon: Eye },
-  { step: 5, title: 'Sending Progress', icon: Send },
-  { step: 6, title: 'Campaign Results', icon: CheckCircle2 },
+  { step: 1, title: 'Add contacts', icon: Upload },
+  { step: 2, title: 'Check columns', icon: Columns },
+  { step: 3, title: 'Write email', icon: FileEdit },
+  { step: 4, title: 'Review and approve', icon: Eye },
+  { step: 5, title: 'Send', icon: Send },
+  { step: 6, title: 'Results', icon: CheckCircle2 },
 ];
 
 export const Stepper: React.FC<StepperProps> = ({ currentStep, onStepClick }) => {
+  const current = steps.find((step) => step.step === currentStep) || steps[0];
+  const progress = Math.round((currentStep / steps.length) * 100);
+
   return (
-    <div className="w-full bg-white border-b border-slate-200 py-3.5 px-4 sm:px-6 mb-6">
-      <div className="max-w-6xl mx-auto flex items-center justify-between">
+    <div className="w-full bg-white border-b border-slate-200 px-4 sm:px-6 mb-6">
+      <div className="max-w-6xl mx-auto py-3 sm:hidden">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-indigo-600">Step {currentStep} of {steps.length}</p>
+            <p className="text-sm font-bold text-slate-900 mt-0.5">{current.title}</p>
+          </div>
+          <span className="text-xs font-semibold text-slate-500">{progress}%</span>
+        </div>
+        <div className="h-1.5 rounded-full bg-slate-100 mt-2.5 overflow-hidden" aria-hidden="true">
+          <div className="h-full rounded-full bg-indigo-600 transition-all" style={{ width: `${progress}%` }} />
+        </div>
+      </div>
+
+      <div className="max-w-6xl mx-auto py-3.5 hidden sm:flex items-center justify-between">
         {steps.map((s, idx) => {
           const Icon = s.icon;
           const isCompleted = currentStep > s.step;
           const isCurrent = currentStep === s.step;
-          const isUpcoming = currentStep < s.step;
 
           return (
             <React.Fragment key={s.step}>
-              <div
+              <button
+                type="button"
                 onClick={() => {
-                  // Only allow clicking to previous completed steps
                   if (isCompleted && onStepClick) {
                     onStepClick(s.step);
                   }
                 }}
+                disabled={!isCompleted || !onStepClick}
+                aria-current={isCurrent ? 'step' : undefined}
+                aria-label={`${s.title}, step ${s.step} of ${steps.length}${isCompleted ? ', completed' : ''}`}
                 className={`flex items-center space-x-2.5 ${
-                  isCompleted ? 'cursor-pointer group' : ''
+                  isCompleted && onStepClick ? 'cursor-pointer group' : 'cursor-default'
                 }`}
               >
                 <div
@@ -61,9 +79,9 @@ export const Stepper: React.FC<StepperProps> = ({ currentStep, onStepClick }) =>
                   >
                     {s.title}
                   </p>
-                  <p className="text-[10px] text-slate-400">Step {s.step} of 6</p>
+                  <p className="text-[10px] text-slate-400">Step {s.step} of {steps.length}</p>
                 </div>
-              </div>
+              </button>
 
               {idx < steps.length - 1 && (
                 <div
