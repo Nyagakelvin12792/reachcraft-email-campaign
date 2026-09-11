@@ -39,10 +39,24 @@ import path from 'path';
 import fs from 'fs';
 
 const imagesUploadDir = path.resolve(process.cwd(), 'uploads/images');
-if (!fs.existsSync(imagesUploadDir)) {
-  fs.mkdirSync(imagesUploadDir, { recursive: true });
+try {
+  if (!fs.existsSync(imagesUploadDir)) {
+    fs.mkdirSync(imagesUploadDir, { recursive: true });
+  }
+  app.use('/api/images', express.static(imagesUploadDir));
+} catch (e) {
+  // Read-only filesystem (e.g. serverless)
 }
-app.use('/api/images', express.static(imagesUploadDir));
+
+const publicImagesDir = path.resolve(process.cwd(), 'src/client/public/images');
+if (fs.existsSync(publicImagesDir)) {
+  app.use('/api/images', express.static(publicImagesDir));
+}
+
+const distImagesDir = path.resolve(process.cwd(), 'dist/client/images');
+if (fs.existsSync(distImagesDir)) {
+  app.use('/api/images', express.static(distImagesDir));
+}
 
 // Serve static frontend build if present
 

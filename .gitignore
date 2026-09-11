@@ -8,6 +8,7 @@ dist
 *.db-wal
 *.db-shm
 prisma/*.db*
+!prisma/seed.db
 uploads/*
 !uploads/.gitkeep
 uploads/images/*
