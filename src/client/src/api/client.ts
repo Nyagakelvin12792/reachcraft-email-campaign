@@ -134,9 +134,18 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     },
   });
 
-  const data = await res.json();
+  const text = await res.text();
+  let data: any = {};
+  try {
+    data = JSON.parse(text);
+  } catch {
+    if (!res.ok) {
+      throw new Error(`Server error (${res.status}): ${text.trim() || res.statusText}`);
+    }
+  }
+
   if (!res.ok) {
-    let errorMsg = data.error || 'An error occurred during request.';
+    let errorMsg = data.error || `Server error (${res.status})`;
     if (data.details && typeof data.details === 'object') {
       const fieldDetails = Object.entries(data.details)
         .map(([field, errs]) => `${field}: ${Array.isArray(errs) ? errs.join(', ') : errs}`)
