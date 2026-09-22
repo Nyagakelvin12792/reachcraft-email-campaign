@@ -83,7 +83,7 @@ Your Investment
 • Fee: Kshs. 150,000
 • Programme Dates: 16 - 20 November 2026
 • Venue: Naivasha
-(This covers tuition fees, course materials, accommodation and daytime meals during the modules)
+(This covers tuition fees, course materials and daytime meals during the modules)
 
 ---
 Frequently Asked Questions
@@ -339,7 +339,7 @@ export const STRATHMORE_MASTER_HTML = `<table role="presentation" width="100%" b
             </table>
             
             <p style="margin: 0; font-size: 13px; color: #64748b; font-style: italic;">
-              (This covers tuition fees, course materials, accommodation and daytime meals during the modules)
+              (This covers tuition fees, course materials and daytime meals during the modules)
             </p>
           </td>
         </tr>
