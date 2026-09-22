@@ -1,6 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { prisma } from '../services/db.js';
 import { logAuditEvent } from '../services/auditLogger.js';
+import { queueWorker } from '../../worker/queueWorker.js';
 
 export const queueRouter = Router({ mergeParams: true });
 
@@ -8,6 +9,17 @@ export const queueRouter = Router({ mergeParams: true });
 queueRouter.get('/progress', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id: campaignId } = req.params;
+
+    // If running in a serverless environment (Vercel / Lambda) without persistent daemons,
+    // dispatch the next recipient with each progress poll
+    const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+    if (isServerless) {
+      try {
+        await queueWorker.processNextBatch(campaignId);
+      } catch (err) {
+        console.warn('Serverless queue tick encountered error:', err);
+      }
+    }
     const campaign = await prisma.campaign.findUnique({
       where: { id: campaignId },
       include: {
