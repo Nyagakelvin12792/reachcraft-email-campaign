@@ -2518,9 +2518,6 @@ app.use(errorHandler);
 
 // src/server/serverless.ts
 function handler(req, res) {
-  if (req.headers && req.headers["x-matched-path"] && (req.url === "/api" || req.url === "/api/")) {
-    req.url = req.headers["x-matched-path"];
-  }
   return app(req, res);
 }
 export {

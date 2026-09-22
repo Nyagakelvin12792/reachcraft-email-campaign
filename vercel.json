@@ -5,15 +5,12 @@
   "functions": {
     "api/index.js": {
       "includeFiles": "prisma/**"
-    },
-    "api/**": {
-      "includeFiles": "prisma/**"
     }
   },
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "/api"
+      "destination": "/api/$1"
     },
     {
       "source": "/(.*)",
