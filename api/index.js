@@ -205,9 +205,12 @@ import path3 from "path";
 import multer from "multer";
 import path2 from "path";
 import fs2 from "fs";
-var UPLOADS_DIR = path2.resolve(process.cwd(), "uploads");
-if (!fs2.existsSync(UPLOADS_DIR)) {
-  fs2.mkdirSync(UPLOADS_DIR, { recursive: true });
+var UPLOADS_DIR = process.env.VERCEL ? "/tmp/uploads" : path2.resolve(process.cwd(), "uploads");
+try {
+  if (!fs2.existsSync(UPLOADS_DIR)) {
+    fs2.mkdirSync(UPLOADS_DIR, { recursive: true });
+  }
+} catch {
 }
 var ALLOWED_EXTENSIONS = /* @__PURE__ */ new Set([".csv", ".xlsx", ".xls"]);
 var ALLOWED_MIMES = /* @__PURE__ */ new Set([
@@ -234,18 +237,9 @@ var BLOCKED_EXTENSIONS = /* @__PURE__ */ new Set([
   ".msi",
   ".dll"
 ]);
-var storage = multer.diskStorage({
-  destination: (_req, _file, cb) => {
-    cb(null, UPLOADS_DIR);
-  },
-  filename: (_req, file, cb) => {
-    const ext = path2.extname(file.originalname).toLowerCase();
-    const safeName = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}${ext}`;
-    cb(null, safeName);
-  }
-});
+var memoryStorage = multer.memoryStorage();
 var uploadMiddleware = multer({
-  storage,
+  storage: memoryStorage,
   limits: {
     fileSize: 5 * 1024 * 1024
     // 5MB maximum
@@ -264,12 +258,21 @@ var uploadMiddleware = multer({
     cb(null, true);
   }
 });
-var IMAGES_DIR = path2.resolve(process.cwd(), "uploads/images");
-if (!fs2.existsSync(IMAGES_DIR)) {
-  fs2.mkdirSync(IMAGES_DIR, { recursive: true });
+var IMAGES_DIR = process.env.VERCEL ? path2.join("/tmp", "uploads", "images") : path2.resolve(process.cwd(), "uploads/images");
+try {
+  if (!fs2.existsSync(IMAGES_DIR)) {
+    fs2.mkdirSync(IMAGES_DIR, { recursive: true });
+  }
+} catch {
 }
 var imageStorage = multer.diskStorage({
   destination: (_req, _file, cb) => {
+    try {
+      if (!fs2.existsSync(IMAGES_DIR)) {
+        fs2.mkdirSync(IMAGES_DIR, { recursive: true });
+      }
+    } catch {
+    }
     cb(null, IMAGES_DIR);
   },
   filename: (_req, file, cb) => {
@@ -349,11 +352,7 @@ function suggestColumnMapping(columns) {
   }
   return mapping;
 }
-function parseSpreadsheetFile(filePath, originalName) {
-  if (!fs3.existsSync(filePath)) {
-    throw new Error("Spreadsheet file does not exist on disk.");
-  }
-  const fileBuffer = fs3.readFileSync(filePath);
+function parseSpreadsheetBuffer(fileBuffer, originalName) {
   const workbook = XLSX.read(fileBuffer, {
     type: "buffer",
     cellFormula: false,
@@ -403,6 +402,13 @@ function parseSpreadsheetFile(filePath, originalName) {
     suggestedMapping,
     rows: normalizedRows
   };
+}
+function parseSpreadsheetFile(filePath, originalName) {
+  if (!fs3.existsSync(filePath)) {
+    throw new Error("Spreadsheet file does not exist on disk.");
+  }
+  const fileBuffer = fs3.readFileSync(filePath);
+  return parseSpreadsheetBuffer(fileBuffer, originalName);
 }
 
 // src/server/services/validator.ts
@@ -560,6 +566,33 @@ function validateSpreadsheetRows(rawRows, mapping, dedupeOptions = { strategy: "
 // src/server/routes/upload.ts
 var uploadRouter = Router2({ mergeParams: true });
 var uploadCache = /* @__PURE__ */ new Map();
+function setUploadCache(campaignId, data) {
+  uploadCache.set(campaignId, data);
+  try {
+    const tmpDir = process.env.VERCEL ? "/tmp" : path3.resolve(process.cwd(), "uploads");
+    if (!fs4.existsSync(tmpDir)) {
+      fs4.mkdirSync(tmpDir, { recursive: true });
+    }
+    fs4.writeFileSync(path3.join(tmpDir, `cache_${campaignId}.json`), JSON.stringify(data), "utf-8");
+  } catch {
+  }
+}
+function getUploadCache(campaignId) {
+  if (uploadCache.has(campaignId)) {
+    return uploadCache.get(campaignId);
+  }
+  try {
+    const tmpDir = process.env.VERCEL ? "/tmp" : path3.resolve(process.cwd(), "uploads");
+    const cacheFile = path3.join(tmpDir, `cache_${campaignId}.json`);
+    if (fs4.existsSync(cacheFile)) {
+      const parsed2 = JSON.parse(fs4.readFileSync(cacheFile, "utf-8"));
+      uploadCache.set(campaignId, parsed2);
+      return parsed2;
+    }
+  } catch {
+  }
+  return void 0;
+}
 uploadRouter.post("/paste", async (req, res, next) => {
   try {
     const { id: campaignId } = req.params;
@@ -573,17 +606,9 @@ uploadRouter.post("/paste", async (req, res, next) => {
       res.status(404).json({ error: "Campaign not found" });
       return;
     }
-    const uploadsDir = path3.resolve(process.cwd(), "uploads");
-    if (!fs4.existsSync(uploadsDir)) {
-      fs4.mkdirSync(uploadsDir, { recursive: true });
-    }
-    const tempFileName = `pasted_${Date.now()}.csv`;
-    const tempFilePath = path3.join(uploadsDir, tempFileName);
-    fs4.writeFileSync(tempFilePath, rawText.trim(), "utf-8");
     const displayName = fileName && typeof fileName === "string" && fileName.trim() ? fileName.trim() : "Pasted Spreadsheet Data";
-    const parsed2 = parseSpreadsheetFile(tempFilePath, displayName);
-    uploadCache.set(campaignId, {
-      filePath: tempFilePath,
+    const parsed2 = parseSpreadsheetBuffer(Buffer.from(rawText.trim(), "utf-8"), displayName);
+    setUploadCache(campaignId, {
       originalFileName: displayName,
       columns: parsed2.columns,
       suggestedMapping: parsed2.suggestedMapping,
@@ -616,18 +641,17 @@ uploadRouter.post("/paste", async (req, res, next) => {
 uploadRouter.post("/upload", uploadMiddleware.single("file"), async (req, res, next) => {
   try {
     const { id: campaignId } = req.params;
-    if (!req.file) {
+    if (!req.file || !req.file.buffer && !req.file.path) {
       res.status(400).json({ error: "No file uploaded or file rejected by security filters." });
       return;
     }
     const campaign = await prisma.campaign.findUnique({ where: { id: campaignId } });
     if (!campaign) {
-      if (fs4.existsSync(req.file.path)) fs4.unlinkSync(req.file.path);
       res.status(404).json({ error: "Campaign not found" });
       return;
     }
-    const parsed2 = parseSpreadsheetFile(req.file.path, req.file.originalname);
-    uploadCache.set(campaignId, {
+    const parsed2 = req.file.buffer ? parseSpreadsheetBuffer(req.file.buffer, req.file.originalname) : parseSpreadsheetFile(req.file.path, req.file.originalname);
+    setUploadCache(campaignId, {
       filePath: req.file.path,
       originalFileName: req.file.originalname,
       columns: parsed2.columns,
@@ -655,19 +679,13 @@ uploadRouter.post("/upload", uploadMiddleware.single("file"), async (req, res, n
       // Safe preview snippet
     });
   } catch (err) {
-    if (req.file && fs4.existsSync(req.file.path)) {
-      try {
-        fs4.unlinkSync(req.file.path);
-      } catch {
-      }
-    }
     next(err);
   }
 });
 uploadRouter.get("/upload", async (req, res, next) => {
   try {
     const { id: campaignId } = req.params;
-    const cached = uploadCache.get(campaignId);
+    const cached = getUploadCache(campaignId);
     if (!cached) {
       res.status(404).json({ error: "No cached spreadsheet upload found for this campaign." });
       return;
@@ -702,7 +720,7 @@ var mappingSchema = z3.object({
 uploadRouter.post("/map", async (req, res, next) => {
   try {
     const { id: campaignId } = req.params;
-    const cached = uploadCache.get(campaignId);
+    const cached = getUploadCache(campaignId);
     if (!cached) {
       res.status(400).json({ error: "No uploaded spreadsheet found for this campaign. Please upload a file first." });
       return;

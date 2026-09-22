@@ -75,16 +75,9 @@ export function suggestColumnMapping(columns: string[]): Record<string, string> 
 }
 
 /**
- * Safely parses an uploaded spreadsheet (CSV, XLSX, XLS)
+ * Safely parses an uploaded spreadsheet buffer (CSV, XLSX, XLS) directly in memory
  */
-export function parseSpreadsheetFile(filePath: string, originalName: string): ParsedSpreadsheet {
-  if (!fs.existsSync(filePath)) {
-    throw new Error('Spreadsheet file does not exist on disk.');
-  }
-
-  // Read file buffer safely
-  const fileBuffer = fs.readFileSync(filePath);
-
+export function parseSpreadsheetBuffer(fileBuffer: Buffer, originalName: string): ParsedSpreadsheet {
   // Parse workbook with SheetJS (disable dangerous formula evaluation)
   const workbook = XLSX.read(fileBuffer, {
     type: 'buffer',
@@ -149,3 +142,16 @@ export function parseSpreadsheetFile(filePath: string, originalName: string): Pa
     rows: normalizedRows,
   };
 }
+
+/**
+ * Safely parses an uploaded spreadsheet file from disk
+ */
+export function parseSpreadsheetFile(filePath: string, originalName: string): ParsedSpreadsheet {
+  if (!fs.existsSync(filePath)) {
+    throw new Error('Spreadsheet file does not exist on disk.');
+  }
+
+  const fileBuffer = fs.readFileSync(filePath);
+  return parseSpreadsheetBuffer(fileBuffer, originalName);
+}
+

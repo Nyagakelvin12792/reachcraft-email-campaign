@@ -3,21 +3,54 @@ import { z } from 'zod';
 import fs from 'fs';
 import path from 'path';
 import { uploadMiddleware } from '../middleware/upload.js';
-import { parseSpreadsheetFile } from '../services/spreadsheet.js';
+import { parseSpreadsheetFile, parseSpreadsheetBuffer } from '../services/spreadsheet.js';
 import { validateSpreadsheetRows, ColumnMappingConfig, DeduplicationOptions } from '../services/validator.js';
 import { prisma } from '../services/db.js';
 import { logAuditEvent } from '../services/auditLogger.js';
 
 export const uploadRouter = Router({ mergeParams: true });
 
-// In-memory cache for parsed upload buffers per campaign before mapping is finalized
-const uploadCache = new Map<string, {
-  filePath: string;
+interface CachedUpload {
+  filePath?: string;
   originalFileName: string;
   columns: string[];
   suggestedMapping: Record<string, string>;
   rows: Array<Record<string, string>>;
-}>();
+}
+
+// In-memory cache for parsed upload buffers per campaign before mapping is finalized
+const uploadCache = new Map<string, CachedUpload>();
+
+function setUploadCache(campaignId: string, data: CachedUpload) {
+  uploadCache.set(campaignId, data);
+  try {
+    const tmpDir = process.env.VERCEL ? '/tmp' : path.resolve(process.cwd(), 'uploads');
+    if (!fs.existsSync(tmpDir)) {
+      fs.mkdirSync(tmpDir, { recursive: true });
+    }
+    fs.writeFileSync(path.join(tmpDir, `cache_${campaignId}.json`), JSON.stringify(data), 'utf-8');
+  } catch {
+    // Ignore cache persistence errors
+  }
+}
+
+function getUploadCache(campaignId: string): CachedUpload | undefined {
+  if (uploadCache.has(campaignId)) {
+    return uploadCache.get(campaignId);
+  }
+  try {
+    const tmpDir = process.env.VERCEL ? '/tmp' : path.resolve(process.cwd(), 'uploads');
+    const cacheFile = path.join(tmpDir, `cache_${campaignId}.json`);
+    if (fs.existsSync(cacheFile)) {
+      const parsed = JSON.parse(fs.readFileSync(cacheFile, 'utf-8'));
+      uploadCache.set(campaignId, parsed);
+      return parsed;
+    }
+  } catch {
+    // Ignore cache load errors
+  }
+  return undefined;
+}
 
 // POST paste spreadsheet data directly (CSV / tab-separated from Excel or Google Sheets)
 uploadRouter.post('/paste', async (req: Request, res: Response, next: NextFunction) => {
@@ -35,19 +68,10 @@ uploadRouter.post('/paste', async (req: Request, res: Response, next: NextFuncti
       return;
     }
 
-    const uploadsDir = path.resolve(process.cwd(), 'uploads');
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
-    }
-    const tempFileName = `pasted_${Date.now()}.csv`;
-    const tempFilePath = path.join(uploadsDir, tempFileName);
-    fs.writeFileSync(tempFilePath, rawText.trim(), 'utf-8');
-
     const displayName = (fileName && typeof fileName === 'string' && fileName.trim()) ? fileName.trim() : 'Pasted Spreadsheet Data';
-    const parsed = parseSpreadsheetFile(tempFilePath, displayName);
+    const parsed = parseSpreadsheetBuffer(Buffer.from(rawText.trim(), 'utf-8'), displayName);
 
-    uploadCache.set(campaignId, {
-      filePath: tempFilePath,
+    setUploadCache(campaignId, {
       originalFileName: displayName,
       columns: parsed.columns,
       suggestedMapping: parsed.suggestedMapping,
@@ -85,24 +109,24 @@ uploadRouter.post('/paste', async (req: Request, res: Response, next: NextFuncti
 uploadRouter.post('/upload', uploadMiddleware.single('file'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id: campaignId } = req.params;
-    if (!req.file) {
+    if (!req.file || (!req.file.buffer && !req.file.path)) {
       res.status(400).json({ error: 'No file uploaded or file rejected by security filters.' });
       return;
     }
 
     const campaign = await prisma.campaign.findUnique({ where: { id: campaignId } });
     if (!campaign) {
-      // Remove temporary file
-      if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
       res.status(404).json({ error: 'Campaign not found' });
       return;
     }
 
-    // Parse spreadsheet safely with SheetJS
-    const parsed = parseSpreadsheetFile(req.file.path, req.file.originalname);
+    // Parse spreadsheet safely with SheetJS from memory buffer or disk fallback
+    const parsed = req.file.buffer
+      ? parseSpreadsheetBuffer(req.file.buffer, req.file.originalname)
+      : parseSpreadsheetFile(req.file.path, req.file.originalname);
 
     // Save in cache for subsequent mapping step
-    uploadCache.set(campaignId, {
+    setUploadCache(campaignId, {
       filePath: req.file.path,
       originalFileName: req.file.originalname,
       columns: parsed.columns,
@@ -132,10 +156,6 @@ uploadRouter.post('/upload', uploadMiddleware.single('file'), async (req: Reques
       sampleRows: parsed.rows.slice(0, 3), // Safe preview snippet
     });
   } catch (err) {
-    // Cleanup file on error
-    if (req.file && fs.existsSync(req.file.path)) {
-      try { fs.unlinkSync(req.file.path); } catch { /* ignore */ }
-    }
     next(err);
   }
 });
@@ -144,7 +164,7 @@ uploadRouter.post('/upload', uploadMiddleware.single('file'), async (req: Reques
 uploadRouter.get('/upload', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id: campaignId } = req.params;
-    const cached = uploadCache.get(campaignId);
+    const cached = getUploadCache(campaignId);
     if (!cached) {
       res.status(404).json({ error: 'No cached spreadsheet upload found for this campaign.' });
       return;
@@ -183,7 +203,7 @@ const mappingSchema = z.object({
 uploadRouter.post('/map', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id: campaignId } = req.params;
-    const cached = uploadCache.get(campaignId);
+    const cached = getUploadCache(campaignId);
 
     if (!cached) {
       res.status(400).json({ error: 'No uploaded spreadsheet found for this campaign. Please upload a file first.' });

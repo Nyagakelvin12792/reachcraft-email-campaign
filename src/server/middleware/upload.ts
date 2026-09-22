@@ -2,9 +2,13 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 
-const UPLOADS_DIR = path.resolve(process.cwd(), 'uploads');
-if (!fs.existsSync(UPLOADS_DIR)) {
-  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+const UPLOADS_DIR = process.env.VERCEL ? '/tmp/uploads' : path.resolve(process.cwd(), 'uploads');
+try {
+  if (!fs.existsSync(UPLOADS_DIR)) {
+    fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+  }
+} catch {
+  // Ignored in read-only environment
 }
 
 // Allowed MIME types and extensions
@@ -24,19 +28,11 @@ const BLOCKED_EXTENSIONS = new Set([
   '.exe', '.bat', '.cmd', '.sh', '.bin', '.js', '.mjs', '.vbs', '.ps1', '.py', '.msi', '.dll'
 ]);
 
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => {
-    cb(null, UPLOADS_DIR);
-  },
-  filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    const safeName = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}${ext}`;
-    cb(null, safeName);
-  },
-});
+// In-memory storage for spreadsheet uploads (eliminates disk I/O and EROFS errors on serverless)
+const memoryStorage = multer.memoryStorage();
 
 export const uploadMiddleware = multer({
-  storage,
+  storage: memoryStorage,
   limits: {
     fileSize: 5 * 1024 * 1024, // 5MB maximum
   },
@@ -60,13 +56,27 @@ export const uploadMiddleware = multer({
   },
 });
 
-const IMAGES_DIR = path.resolve(process.cwd(), 'uploads/images');
-if (!fs.existsSync(IMAGES_DIR)) {
-  fs.mkdirSync(IMAGES_DIR, { recursive: true });
+const IMAGES_DIR = process.env.VERCEL
+  ? path.join('/tmp', 'uploads', 'images')
+  : path.resolve(process.cwd(), 'uploads/images');
+
+try {
+  if (!fs.existsSync(IMAGES_DIR)) {
+    fs.mkdirSync(IMAGES_DIR, { recursive: true });
+  }
+} catch {
+  // Ignored in read-only environment
 }
 
 const imageStorage = multer.diskStorage({
   destination: (_req, _file, cb) => {
+    try {
+      if (!fs.existsSync(IMAGES_DIR)) {
+        fs.mkdirSync(IMAGES_DIR, { recursive: true });
+      }
+    } catch {
+      // Ignored
+    }
     cb(null, IMAGES_DIR);
   },
   filename: (_req, file, cb) => {

@@ -216,7 +216,17 @@ export const api = {
       body: formData,
     });
 
-    const data = await res.json();
+    const text = await res.text();
+    let data: any = {};
+    try {
+      data = JSON.parse(text);
+    } catch {
+      if (!res.ok) {
+        throw new Error(`Server error (${res.status}): ${text.trim() || res.statusText}`);
+      }
+      throw new Error(`Invalid response from server: ${text.slice(0, 150)}`);
+    }
+
     if (!res.ok) {
       throw new Error(data.error || 'File upload failed.');
     }
@@ -287,7 +297,16 @@ export const api = {
       method: 'POST',
       body: formData,
     });
-    const data = await res.json();
+    const text = await res.text();
+    let data: any = {};
+    try {
+      data = JSON.parse(text);
+    } catch {
+      if (!res.ok) {
+        throw new Error(`Server error (${res.status}): ${text.trim() || res.statusText}`);
+      }
+      throw new Error(`Invalid response from server: ${text.slice(0, 150)}`);
+    }
     if (!res.ok) {
       throw new Error(data.error || 'Failed to upload image.');
     }
