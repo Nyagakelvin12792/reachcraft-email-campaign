@@ -1,7 +1,7 @@
 {
   "name": "email-campaign-app",
   "version": "1.0.0",
-  "description": "Secure personalized email campaign platform with Gmail SMTP, SheetJS, and persistent SQLite queue",
+  "description": "Secure personalized email campaign platform with Gmail SMTP and durable campaign storage",
   "type": "module",
   "private": true,
   "engines": {
@@ -14,7 +14,7 @@
     "build:client": "vite build",
     "build:server": "tsc -p tsconfig.server.json",
     "build:api": "esbuild src/server/serverless.ts --bundle --platform=node --format=esm --packages=external --outfile=api/index.js",
-    "build": "npm run prisma:generate && npm run build:server && npm run build:client && npm run build:api",
+    "build": "node scripts/setup-database.mjs && npm run build:server && npm run build:client && npm run build:api",
     "start": "node dist/server/src/server/index.js",
     "worker": "tsx src/worker/index.ts",
     "prisma:generate": "prisma generate",

@@ -51,4 +51,13 @@ describe('Campaign draft updates', () => {
 
     expect(response.status).toBe(404);
   });
+
+  it('returns a clear 404 instead of a foreign-key error when saving a template for a missing campaign', async () => {
+    const response = await request(app)
+      .put('/api/campaigns/missing-campaign/template')
+      .send({ subject: 'Hello', bodyText: 'Dear {{first name}}' });
+
+    expect(response.status).toBe(404);
+    expect(response.body.error).toContain('Campaign not found');
+  });
 });

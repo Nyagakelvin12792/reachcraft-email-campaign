@@ -1,76 +1,22 @@
 import { PrismaClient } from '@prisma/client';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.VERCEL_ENV);
-const tmpDbPath = process.env.SERVERLESS_DATABASE_PATH || '/tmp/dev.db';
+const configuredDatabaseUrl = [
+  process.env.DATABASE_URL,
+  process.env.POSTGRES_PRISMA_URL,
+  process.env.POSTGRES_URL,
+  process.env.POSTGRES_URL_NON_POOLING,
+].find((value) => value?.trim());
 
-function makeDatabaseWritable(databasePath: string): void {
-  // Files bundled with serverless functions can be read-only. SQLite needs to
-  // write both the database and its journal files after the seed is copied.
-  try {
-    fs.chmodSync(databasePath, 0o600);
-  } catch (err) {
-    console.warn(`Could not update SQLite permissions for ${databasePath}:`, err);
-  }
+if (isServerless && !/^postgres(?:ql)?:\/\//i.test(configuredDatabaseUrl ?? '')) {
+  throw new Error(
+    'Persistent PostgreSQL is not configured. Set DATABASE_URL (or a Vercel Postgres URL) before running on Vercel.'
+  );
 }
 
-// Support Vercel serverless SQLite by copying seed.db to /tmp/dev.db
-if (isServerless) {
-  try {
-    const tmpDir = path.dirname(tmpDbPath);
-    if (!fs.existsSync(tmpDir)) {
-      fs.mkdirSync(tmpDir, { recursive: true });
-    }
-
-    if (!fs.existsSync(tmpDbPath)) {
-      const candidatePaths = [
-        path.join(process.cwd(), 'prisma/seed.db'),
-        path.join(process.cwd(), 'prisma/dev.db'),
-        path.resolve('./prisma/seed.db'),
-        path.resolve('./prisma/dev.db'),
-        path.join(__dirname, 'prisma/seed.db'),
-        path.join(__dirname, '../prisma/seed.db'),
-        path.join(__dirname, '../../prisma/seed.db'),
-        path.join(__dirname, '../../../prisma/seed.db'),
-        path.join(__dirname, '../../../../prisma/seed.db'),
-      ];
-
-      let found = false;
-      for (const p of candidatePaths) {
-        if (fs.existsSync(p)) {
-          try {
-            fs.writeFileSync(tmpDbPath, fs.readFileSync(p), { mode: 0o600 });
-            makeDatabaseWritable(tmpDbPath);
-            const stat = fs.statSync(tmpDbPath);
-            console.log(`Successfully initialized SQLite database at ${tmpDbPath} from ${p} (${stat.size} bytes)`);
-            found = true;
-            break;
-          } catch (e) {
-            console.warn(`Could not copy seed DB from ${p} to /tmp:`, e);
-          }
-        }
-      }
-      if (!found) {
-        console.warn('⚠️ Warning: seed.db was not found in any candidate path in serverless container:', candidatePaths);
-      }
-    }
-
-    if (fs.existsSync(tmpDbPath)) {
-      makeDatabaseWritable(tmpDbPath);
-    }
-  } catch (err) {
-    console.error('Error ensuring /tmp SQLite database exists:', err);
-  }
-
-  process.env.DATABASE_URL = `file:${tmpDbPath}`;
+if (configuredDatabaseUrl) {
+  process.env.DATABASE_URL = configuredDatabaseUrl;
 }
-
-const dbUrl = isServerless ? `file:${tmpDbPath}` : process.env.DATABASE_URL;
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
@@ -79,7 +25,7 @@ const globalForPrisma = globalThis as unknown as {
 export const prisma =
   globalForPrisma.prisma ??
   new PrismaClient({
-    datasources: dbUrl ? { db: { url: dbUrl } } : undefined,
+    datasources: configuredDatabaseUrl ? { db: { url: configuredDatabaseUrl } } : undefined,
     log: process.env.NODE_ENV === 'development' ? ['warn', 'error'] : ['error'],
   });
 

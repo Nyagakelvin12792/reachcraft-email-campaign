@@ -21,3 +21,7 @@ coverage
 scratch/
 *.tmp
 inspect_campaign.js
+.vercel
+.env*
+!.env.example
+.vercel-auth/

@@ -8,69 +8,24 @@ import { z } from "zod";
 
 // src/server/services/db.ts
 import { PrismaClient } from "@prisma/client";
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
-var __filename = fileURLToPath(import.meta.url);
-var __dirname = path.dirname(__filename);
 var isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.VERCEL_ENV);
-var tmpDbPath = process.env.SERVERLESS_DATABASE_PATH || "/tmp/dev.db";
-function makeDatabaseWritable(databasePath) {
-  try {
-    fs.chmodSync(databasePath, 384);
-  } catch (err) {
-    console.warn(`Could not update SQLite permissions for ${databasePath}:`, err);
-  }
+var configuredDatabaseUrl = [
+  process.env.DATABASE_URL,
+  process.env.POSTGRES_PRISMA_URL,
+  process.env.POSTGRES_URL,
+  process.env.POSTGRES_URL_NON_POOLING
+].find((value) => value?.trim());
+if (isServerless && !/^postgres(?:ql)?:\/\//i.test(configuredDatabaseUrl ?? "")) {
+  throw new Error(
+    "Persistent PostgreSQL is not configured. Set DATABASE_URL (or a Vercel Postgres URL) before running on Vercel."
+  );
 }
-if (isServerless) {
-  try {
-    const tmpDir = path.dirname(tmpDbPath);
-    if (!fs.existsSync(tmpDir)) {
-      fs.mkdirSync(tmpDir, { recursive: true });
-    }
-    if (!fs.existsSync(tmpDbPath)) {
-      const candidatePaths = [
-        path.join(process.cwd(), "prisma/seed.db"),
-        path.join(process.cwd(), "prisma/dev.db"),
-        path.resolve("./prisma/seed.db"),
-        path.resolve("./prisma/dev.db"),
-        path.join(__dirname, "prisma/seed.db"),
-        path.join(__dirname, "../prisma/seed.db"),
-        path.join(__dirname, "../../prisma/seed.db"),
-        path.join(__dirname, "../../../prisma/seed.db"),
-        path.join(__dirname, "../../../../prisma/seed.db")
-      ];
-      let found = false;
-      for (const p of candidatePaths) {
-        if (fs.existsSync(p)) {
-          try {
-            fs.writeFileSync(tmpDbPath, fs.readFileSync(p), { mode: 384 });
-            makeDatabaseWritable(tmpDbPath);
-            const stat = fs.statSync(tmpDbPath);
-            console.log(`Successfully initialized SQLite database at ${tmpDbPath} from ${p} (${stat.size} bytes)`);
-            found = true;
-            break;
-          } catch (e) {
-            console.warn(`Could not copy seed DB from ${p} to /tmp:`, e);
-          }
-        }
-      }
-      if (!found) {
-        console.warn("\u26A0\uFE0F Warning: seed.db was not found in any candidate path in serverless container:", candidatePaths);
-      }
-    }
-    if (fs.existsSync(tmpDbPath)) {
-      makeDatabaseWritable(tmpDbPath);
-    }
-  } catch (err) {
-    console.error("Error ensuring /tmp SQLite database exists:", err);
-  }
-  process.env.DATABASE_URL = `file:${tmpDbPath}`;
+if (configuredDatabaseUrl) {
+  process.env.DATABASE_URL = configuredDatabaseUrl;
 }
-var dbUrl = isServerless ? `file:${tmpDbPath}` : process.env.DATABASE_URL;
 var globalForPrisma = globalThis;
 var prisma = globalForPrisma.prisma ?? new PrismaClient({
-  datasources: dbUrl ? { db: { url: dbUrl } } : void 0,
+  datasources: configuredDatabaseUrl ? { db: { url: configuredDatabaseUrl } } : void 0,
   log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"]
 });
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
@@ -1040,29 +995,42 @@ templatesRouter.put("/template", async (req, res, next) => {
   try {
     const { id: campaignId } = req.params;
     const parsed2 = templateSchema.parse(req.body);
-    const template = await prisma.template.upsert({
-      where: { campaignId },
-      create: {
-        campaignId,
-        senderName: parsed2.senderName || null,
-        replyTo: parsed2.replyTo || null,
-        subject: parsed2.subject,
-        bodyText: parsed2.bodyText,
-        bodyHtml: parsed2.bodyHtml || null,
-        signature: parsed2.signature || null
-      },
-      update: {
-        senderName: parsed2.senderName || null,
-        replyTo: parsed2.replyTo || null,
-        subject: parsed2.subject,
-        bodyText: parsed2.bodyText,
-        bodyHtml: parsed2.bodyHtml || null,
-        signature: parsed2.signature || null
-      }
-    });
-    await prisma.campaign.update({
+    const campaign = await prisma.campaign.findUnique({
       where: { id: campaignId },
-      data: { status: "CONFIGURED" }
+      select: { id: true }
+    });
+    if (!campaign) {
+      res.status(404).json({
+        error: "Campaign not found. Return to the dashboard and create or reopen a draft."
+      });
+      return;
+    }
+    const template = await prisma.$transaction(async (tx) => {
+      const savedTemplate = await tx.template.upsert({
+        where: { campaignId },
+        create: {
+          campaignId,
+          senderName: parsed2.senderName || null,
+          replyTo: parsed2.replyTo || null,
+          subject: parsed2.subject,
+          bodyText: parsed2.bodyText,
+          bodyHtml: parsed2.bodyHtml || null,
+          signature: parsed2.signature || null
+        },
+        update: {
+          senderName: parsed2.senderName || null,
+          replyTo: parsed2.replyTo || null,
+          subject: parsed2.subject,
+          bodyText: parsed2.bodyText,
+          bodyHtml: parsed2.bodyHtml || null,
+          signature: parsed2.signature || null
+        }
+      });
+      await tx.campaign.update({
+        where: { id: campaignId },
+        data: { status: "CONFIGURED" }
+      });
+      return savedTemplate;
     });
     await logAuditEvent("TEMPLATE_SAVED", { subject: template.subject }, campaignId, req.ip);
     res.json({ template });

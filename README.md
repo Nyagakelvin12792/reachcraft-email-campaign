@@ -84,6 +84,12 @@ SEND_DELAY_MS=2000
 MAX_RETRIES=3
 MAX_RECIPIENTS=100
 ```
+
+Local development uses SQLite. Vercel deployments require a managed
+PostgreSQL database exposed as `DATABASE_URL`, `POSTGRES_PRISMA_URL`,
+`POSTGRES_URL`, or `POSTGRES_URL_NON_POOLING`. The production build refuses to
+fall back to temporary SQLite storage because serverless instances do not
+share or preserve `/tmp` databases.
 > **Note**: If `GMAIL_APP_PASSWORD` is omitted or set to `mock_...`, the system runs in **Mock Mailer Mode**, allowing full end-to-end testing without contacting external Gmail servers.
 
 ---

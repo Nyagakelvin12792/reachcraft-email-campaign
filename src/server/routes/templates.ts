@@ -55,30 +55,45 @@ templatesRouter.put('/template', async (req: Request, res: Response, next: NextF
     const { id: campaignId } = req.params;
     const parsed = templateSchema.parse(req.body);
 
-    const template = await prisma.template.upsert({
-      where: { campaignId },
-      create: {
-        campaignId,
-        senderName: parsed.senderName || null,
-        replyTo: parsed.replyTo || null,
-        subject: parsed.subject,
-        bodyText: parsed.bodyText,
-        bodyHtml: parsed.bodyHtml || null,
-        signature: parsed.signature || null,
-      },
-      update: {
-        senderName: parsed.senderName || null,
-        replyTo: parsed.replyTo || null,
-        subject: parsed.subject,
-        bodyText: parsed.bodyText,
-        bodyHtml: parsed.bodyHtml || null,
-        signature: parsed.signature || null,
-      },
-    });
-
-    await prisma.campaign.update({
+    const campaign = await prisma.campaign.findUnique({
       where: { id: campaignId },
-      data: { status: 'CONFIGURED' },
+      select: { id: true },
+    });
+    if (!campaign) {
+      res.status(404).json({
+        error: 'Campaign not found. Return to the dashboard and create or reopen a draft.',
+      });
+      return;
+    }
+
+    const template = await prisma.$transaction(async (tx) => {
+      const savedTemplate = await tx.template.upsert({
+        where: { campaignId },
+        create: {
+          campaignId,
+          senderName: parsed.senderName || null,
+          replyTo: parsed.replyTo || null,
+          subject: parsed.subject,
+          bodyText: parsed.bodyText,
+          bodyHtml: parsed.bodyHtml || null,
+          signature: parsed.signature || null,
+        },
+        update: {
+          senderName: parsed.senderName || null,
+          replyTo: parsed.replyTo || null,
+          subject: parsed.subject,
+          bodyText: parsed.bodyText,
+          bodyHtml: parsed.bodyHtml || null,
+          signature: parsed.signature || null,
+        },
+      });
+
+      await tx.campaign.update({
+        where: { id: campaignId },
+        data: { status: 'CONFIGURED' },
+      });
+
+      return savedTemplate;
     });
 
     await logAuditEvent('TEMPLATE_SAVED', { subject: template.subject }, campaignId, req.ip);
