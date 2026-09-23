@@ -41,6 +41,20 @@ describe('Template Engine, Placeholder Interpolation & HTML Sanitization', () =>
     expect(result.missingPlaceholders.length).toBe(0);
   });
 
+  it('capitalizes recipient names while preserving intentional mixed case', () => {
+    const result = renderEmail(
+      'Hello {{first name}} {{last name}}',
+      'Dear {{full name}},',
+      undefined,
+      '',
+      { enabled: false },
+      { firstName: 'mary-jane', lastName: "o'connor McDonald" }
+    );
+
+    expect(result.subject).toBe("Hello Mary-Jane O'Connor McDonald");
+    expect(result.bodyText).toBe("Dear Mary-Jane O'Connor McDonald,");
+  });
+
   it('highlights missing placeholder values and never silently inserts undefined or null', () => {
     const recipientWithMissing = {
       firstName: 'John',

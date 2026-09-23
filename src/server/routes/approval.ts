@@ -5,6 +5,7 @@ import { validateEmail } from '../services/validator.js';
 import { renderEmail } from '../services/templateEngine.js';
 import { sendPersonalizedEmail } from '../services/mailer.js';
 import { logAuditEvent } from '../services/auditLogger.js';
+import { capitalizePersonName } from '../services/nameFormatter.js';
 
 export const approvalRouter = Router({ mergeParams: true });
 
@@ -83,6 +84,12 @@ approvalRouter.patch('/recipients/:recipientId', async (req: Request, res: Respo
     }
 
     const updatedEmail = data.email !== undefined ? data.email.trim() : existing.email;
+    const updatedFirstName = data.firstName !== undefined
+      ? capitalizePersonName(data.firstName)
+      : capitalizePersonName(existing.firstName);
+    const updatedLastName = data.lastName !== undefined
+      ? capitalizePersonName(data.lastName)
+      : capitalizePersonName(existing.lastName);
     let status = existing.status;
     let rejectReason: string | null = existing.rejectReason;
 
@@ -117,8 +124,8 @@ approvalRouter.patch('/recipients/:recipientId', async (req: Request, res: Respo
         { enabled: campaign.optOutEnabled, text: campaign.optOutText },
         {
           email: updatedEmail,
-          firstName: data.firstName !== undefined ? data.firstName : existing.firstName,
-          lastName: data.lastName !== undefined ? data.lastName : existing.lastName,
+          firstName: updatedFirstName,
+          lastName: updatedLastName,
           company: data.company !== undefined ? data.company : existing.company,
           phone: data.phone !== undefined ? data.phone : existing.phone,
           jobTitle: data.jobTitle !== undefined ? data.jobTitle : existing.jobTitle,
@@ -139,8 +146,8 @@ approvalRouter.patch('/recipients/:recipientId', async (req: Request, res: Respo
       where: { id: recipientId },
       data: {
         email: updatedEmail,
-        firstName: data.firstName !== undefined ? data.firstName : existing.firstName,
-        lastName: data.lastName !== undefined ? data.lastName : existing.lastName,
+        firstName: updatedFirstName,
+        lastName: updatedLastName,
         company: data.company !== undefined ? data.company : existing.company,
         phone: data.phone !== undefined ? data.phone : existing.phone,
         jobTitle: data.jobTitle !== undefined ? data.jobTitle : existing.jobTitle,

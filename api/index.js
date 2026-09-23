@@ -468,8 +468,8 @@ function validateSpreadsheetRows(rawRows, mapping, dedupeOptions = { strategy: "
     const rowNumber = idx + 2;
     const rawEmail = (row[emailCol] || "").trim();
     const normalizedEmail = rawEmail.toLowerCase();
-    const firstName = mapping.firstName ? (row[mapping.firstName] || "").trim() : "";
-    const lastName = mapping.lastName ? (row[mapping.lastName] || "").trim() : "";
+    const firstName = mapping.firstName ? capitalizePersonName(row[mapping.firstName]) : "";
+    const lastName = mapping.lastName ? capitalizePersonName(row[mapping.lastName]) : "";
     const company = mapping.company ? (row[mapping.company] || "").trim() : "";
     const phone = mapping.phone ? (row[mapping.phone] || "").trim() : "";
     const jobTitle = mapping.jobTitle ? (row[mapping.jobTitle] || "").trim() : "";
@@ -827,19 +827,31 @@ function extractPlaceholders(text) {
   }
   return Array.from(matches);
 }
+function capitalizePersonName(value) {
+  const normalized = (value ?? "").trim().replace(/\s+/g, " ");
+  return normalized.split(/([\s'-]+)/).map((part) => {
+    if (!part || /^[\s'-]+$/.test(part)) return part;
+    const lower = part.toLocaleLowerCase();
+    const upper = part.toLocaleUpperCase();
+    if (part !== lower && part !== upper) return part;
+    return lower.charAt(0).toLocaleUpperCase() + lower.slice(1);
+  }).join("");
+}
 function resolveTokenValue(token, recipient) {
   const norm = normalizeTokenKey(token);
   if (norm === "first name" || norm === "firstname" || norm === "first") {
-    return recipient.firstName ?? void 0;
+    return capitalizePersonName(recipient.firstName) || void 0;
   }
   if (norm === "name" || norm === "full name" || norm === "recipient" || norm === "recipient name") {
-    if (recipient.firstName && recipient.lastName) {
-      return `${recipient.firstName} ${recipient.lastName}`;
+    const firstName = capitalizePersonName(recipient.firstName);
+    const lastName = capitalizePersonName(recipient.lastName);
+    if (firstName && lastName) {
+      return `${firstName} ${lastName}`;
     }
-    return recipient.firstName || recipient.lastName || void 0;
+    return firstName || lastName || void 0;
   }
   if (norm === "last name" || norm === "lastname" || norm === "last" || norm === "surname") {
-    return recipient.lastName ?? void 0;
+    return capitalizePersonName(recipient.lastName) || void 0;
   }
   if (norm === "email address" || norm === "email") {
     return recipient.email ?? void 0;
@@ -1471,6 +1483,8 @@ approvalRouter.patch("/recipients/:recipientId", async (req, res, next) => {
       return;
     }
     const updatedEmail = data.email !== void 0 ? data.email.trim() : existing.email;
+    const updatedFirstName = data.firstName !== void 0 ? capitalizePersonName(data.firstName) : capitalizePersonName(existing.firstName);
+    const updatedLastName = data.lastName !== void 0 ? capitalizePersonName(data.lastName) : capitalizePersonName(existing.lastName);
     let status = existing.status;
     let rejectReason = existing.rejectReason;
     if (data.email !== void 0) {
@@ -1503,8 +1517,8 @@ approvalRouter.patch("/recipients/:recipientId", async (req, res, next) => {
         { enabled: campaign.optOutEnabled, text: campaign.optOutText },
         {
           email: updatedEmail,
-          firstName: data.firstName !== void 0 ? data.firstName : existing.firstName,
-          lastName: data.lastName !== void 0 ? data.lastName : existing.lastName,
+          firstName: updatedFirstName,
+          lastName: updatedLastName,
           company: data.company !== void 0 ? data.company : existing.company,
           phone: data.phone !== void 0 ? data.phone : existing.phone,
           jobTitle: data.jobTitle !== void 0 ? data.jobTitle : existing.jobTitle,
@@ -1523,8 +1537,8 @@ approvalRouter.patch("/recipients/:recipientId", async (req, res, next) => {
       where: { id: recipientId },
       data: {
         email: updatedEmail,
-        firstName: data.firstName !== void 0 ? data.firstName : existing.firstName,
-        lastName: data.lastName !== void 0 ? data.lastName : existing.lastName,
+        firstName: updatedFirstName,
+        lastName: updatedLastName,
         company: data.company !== void 0 ? data.company : existing.company,
         phone: data.phone !== void 0 ? data.phone : existing.phone,
         jobTitle: data.jobTitle !== void 0 ? data.jobTitle : existing.jobTitle,

@@ -1,4 +1,5 @@
 import sanitizeHtml from 'sanitize-html';
+import { capitalizePersonName } from './nameFormatter.js';
 
 export interface RecipientData {
   email?: string | null;
@@ -80,16 +81,18 @@ export function resolveTokenValue(
 
   // Standard token aliases
   if (norm === 'first name' || norm === 'firstname' || norm === 'first') {
-    return recipient.firstName ?? undefined;
+    return capitalizePersonName(recipient.firstName) || undefined;
   }
   if (norm === 'name' || norm === 'full name' || norm === 'recipient' || norm === 'recipient name') {
-    if (recipient.firstName && recipient.lastName) {
-      return `${recipient.firstName} ${recipient.lastName}`;
+    const firstName = capitalizePersonName(recipient.firstName);
+    const lastName = capitalizePersonName(recipient.lastName);
+    if (firstName && lastName) {
+      return `${firstName} ${lastName}`;
     }
-    return recipient.firstName || recipient.lastName || undefined;
+    return firstName || lastName || undefined;
   }
   if (norm === 'last name' || norm === 'lastname' || norm === 'last' || norm === 'surname') {
-    return recipient.lastName ?? undefined;
+    return capitalizePersonName(recipient.lastName) || undefined;
   }
   if (norm === 'email address' || norm === 'email') {
     return recipient.email ?? undefined;

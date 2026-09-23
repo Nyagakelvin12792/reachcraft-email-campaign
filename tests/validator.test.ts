@@ -6,6 +6,16 @@ import {
 } from '../src/server/services/validator.js';
 
 describe('Validator Service & Deduplication', () => {
+  it('normalizes imported recipient names', () => {
+    const summary = validateSpreadsheetRows(
+      [{ Email: 'mary@example.com', First: 'mary-jane', Last: "O'CONNOR" }],
+      { email: 'Email', firstName: 'First', lastName: 'Last' }
+    );
+
+    expect(summary.rows[0].firstName).toBe('Mary-Jane');
+    expect(summary.rows[0].lastName).toBe("O'Connor");
+  });
+
   it('strictly validates email syntax and rejects invalid entries without modifying them', () => {
     expect(validateEmail('valid.user@example.com').valid).toBe(true);
     expect(validateEmail('user+tag@domain.co.uk').valid).toBe(true);

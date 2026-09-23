@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { capitalizePersonName } from './nameFormatter.js';
 
 export type RecipientStatus =
   | 'READY'
@@ -118,8 +119,8 @@ export function validateSpreadsheetRows(
     const normalizedEmail = rawEmail.toLowerCase();
 
     // Map standard fields
-    const firstName = mapping.firstName ? (row[mapping.firstName] || '').trim() : '';
-    const lastName = mapping.lastName ? (row[mapping.lastName] || '').trim() : '';
+    const firstName = mapping.firstName ? capitalizePersonName(row[mapping.firstName]) : '';
+    const lastName = mapping.lastName ? capitalizePersonName(row[mapping.lastName]) : '';
     const company = mapping.company ? (row[mapping.company] || '').trim() : '';
     const phone = mapping.phone ? (row[mapping.phone] || '').trim() : '';
     const jobTitle = mapping.jobTitle ? (row[mapping.jobTitle] || '').trim() : '';
