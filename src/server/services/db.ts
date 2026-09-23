@@ -7,7 +7,17 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.VERCEL_ENV);
-const tmpDbPath = '/tmp/dev.db';
+const tmpDbPath = process.env.SERVERLESS_DATABASE_PATH || '/tmp/dev.db';
+
+function makeDatabaseWritable(databasePath: string): void {
+  // Files bundled with serverless functions can be read-only. SQLite needs to
+  // write both the database and its journal files after the seed is copied.
+  try {
+    fs.chmodSync(databasePath, 0o600);
+  } catch (err) {
+    console.warn(`Could not update SQLite permissions for ${databasePath}:`, err);
+  }
+}
 
 // Support Vercel serverless SQLite by copying seed.db to /tmp/dev.db
 if (isServerless) {
@@ -34,7 +44,8 @@ if (isServerless) {
       for (const p of candidatePaths) {
         if (fs.existsSync(p)) {
           try {
-            fs.copyFileSync(p, tmpDbPath);
+            fs.writeFileSync(tmpDbPath, fs.readFileSync(p), { mode: 0o600 });
+            makeDatabaseWritable(tmpDbPath);
             const stat = fs.statSync(tmpDbPath);
             console.log(`Successfully initialized SQLite database at ${tmpDbPath} from ${p} (${stat.size} bytes)`);
             found = true;
@@ -47,6 +58,10 @@ if (isServerless) {
       if (!found) {
         console.warn('⚠️ Warning: seed.db was not found in any candidate path in serverless container:', candidatePaths);
       }
+    }
+
+    if (fs.existsSync(tmpDbPath)) {
+      makeDatabaseWritable(tmpDbPath);
     }
   } catch (err) {
     console.error('Error ensuring /tmp SQLite database exists:', err);

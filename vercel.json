@@ -4,7 +4,8 @@
   "outputDirectory": "dist/client",
   "functions": {
     "api/index.js": {
-      "includeFiles": "prisma/**"
+      "includeFiles": "prisma/**",
+      "maxDuration": 60
     }
   },
   "rewrites": [

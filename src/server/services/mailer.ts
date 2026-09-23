@@ -102,6 +102,10 @@ export function classifySmtpError(err: unknown): { category: SmtpCategory; code?
 
 let transporterInstance: Transporter | null = null;
 
+const isServerless = Boolean(
+  process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.VERCEL_ENV
+);
+
 export function resetTransporter(): void {
   transporterInstance = null;
 }
@@ -140,9 +144,9 @@ export function getTransporter(): Transporter {
       pass: config.GMAIL_APP_PASSWORD.replace(/\s+/g, ''), // Strip spaces from app password
     },
     // Conservative socket timeouts
-    connectionTimeout: 15000,
-    greetingTimeout: 10000,
-    socketTimeout: 20000,
+    connectionTimeout: isServerless ? 7000 : 15000,
+    greetingTimeout: isServerless ? 7000 : 10000,
+    socketTimeout: isServerless ? 9000 : 20000,
   });
 
   return transporterInstance;

@@ -14,7 +14,14 @@ import { fileURLToPath } from "url";
 var __filename = fileURLToPath(import.meta.url);
 var __dirname = path.dirname(__filename);
 var isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.VERCEL_ENV);
-var tmpDbPath = "/tmp/dev.db";
+var tmpDbPath = process.env.SERVERLESS_DATABASE_PATH || "/tmp/dev.db";
+function makeDatabaseWritable(databasePath) {
+  try {
+    fs.chmodSync(databasePath, 384);
+  } catch (err) {
+    console.warn(`Could not update SQLite permissions for ${databasePath}:`, err);
+  }
+}
 if (isServerless) {
   try {
     const tmpDir = path.dirname(tmpDbPath);
@@ -37,7 +44,8 @@ if (isServerless) {
       for (const p of candidatePaths) {
         if (fs.existsSync(p)) {
           try {
-            fs.copyFileSync(p, tmpDbPath);
+            fs.writeFileSync(tmpDbPath, fs.readFileSync(p), { mode: 384 });
+            makeDatabaseWritable(tmpDbPath);
             const stat = fs.statSync(tmpDbPath);
             console.log(`Successfully initialized SQLite database at ${tmpDbPath} from ${p} (${stat.size} bytes)`);
             found = true;
@@ -50,6 +58,9 @@ if (isServerless) {
       if (!found) {
         console.warn("\u26A0\uFE0F Warning: seed.db was not found in any candidate path in serverless container:", candidatePaths);
       }
+    }
+    if (fs.existsSync(tmpDbPath)) {
+      makeDatabaseWritable(tmpDbPath);
     }
   } catch (err) {
     console.error("Error ensuring /tmp SQLite database exists:", err);
@@ -1233,6 +1244,7 @@ function classifySmtpError(err) {
   };
 }
 var transporterInstance = null;
+var isServerless2 = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.VERCEL_ENV);
 function resetTransporter() {
   transporterInstance = null;
 }
@@ -1261,9 +1273,9 @@ function getTransporter() {
       // Strip spaces from app password
     },
     // Conservative socket timeouts
-    connectionTimeout: 15e3,
-    greetingTimeout: 1e4,
-    socketTimeout: 2e4
+    connectionTimeout: isServerless2 ? 7e3 : 15e3,
+    greetingTimeout: isServerless2 ? 7e3 : 1e4,
+    socketTimeout: isServerless2 ? 9e3 : 2e4
   });
   return transporterInstance;
 }
