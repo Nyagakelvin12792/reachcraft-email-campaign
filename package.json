@@ -4,6 +4,9 @@
   "description": "Secure personalized email campaign platform with Gmail SMTP, SheetJS, and persistent SQLite queue",
   "type": "module",
   "private": true,
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "dev:server": "tsx watch src/server/index.ts",
     "dev:worker": "tsx watch src/worker/index.ts",
