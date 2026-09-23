@@ -3,17 +3,25 @@ import { z } from 'zod';
 
 dotenv.config();
 
+const blankAsUndefined = <T extends z.ZodTypeAny>(schema: T) =>
+  z.preprocess(
+    (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    schema
+  );
+
 const envSchema = z.object({
-  PORT: z.coerce.number().default(3001),
-  NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
-  DATABASE_URL: z.string().default('file:./dev.db'),
+  PORT: blankAsUndefined(z.coerce.number().default(3001)),
+  NODE_ENV: blankAsUndefined(z.enum(['development', 'production', 'test']).default('development')),
+  DATABASE_URL: blankAsUndefined(z.string().default('file:./dev.db')),
   GMAIL_USER: z.string().email().optional().or(z.literal('')).default(''),
   GMAIL_APP_PASSWORD: z.string().optional().default(''),
-  DEFAULT_FROM_NAME: z.string().default('Campaign Manager'),
-  APP_ENCRYPTION_KEY: z.string().min(16).default('12345678901234567890123456789012'),
-  SEND_DELAY_MS: z.coerce.number().min(100).default(2000),
-  MAX_RETRIES: z.coerce.number().min(0).max(10).default(3),
-  MAX_RECIPIENTS: z.coerce.number().min(1).max(100).default(100),
+  DEFAULT_FROM_NAME: blankAsUndefined(z.string().default('Campaign Manager')),
+  APP_ENCRYPTION_KEY: blankAsUndefined(
+    z.string().min(16).default('12345678901234567890123456789012')
+  ),
+  SEND_DELAY_MS: blankAsUndefined(z.coerce.number().min(100).default(2000)),
+  MAX_RETRIES: blankAsUndefined(z.coerce.number().min(0).max(10).default(3)),
+  MAX_RECIPIENTS: blankAsUndefined(z.coerce.number().min(1).max(100).default(100)),
 });
 
 const parsed = envSchema.safeParse(process.env);

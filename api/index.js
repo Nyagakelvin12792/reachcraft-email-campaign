@@ -1160,17 +1160,21 @@ import fs5 from "fs";
 import dotenv from "dotenv";
 import { z as z5 } from "zod";
 dotenv.config();
+var blankAsUndefined = (schema) => z5.preprocess(
+  (value) => typeof value === "string" && value.trim() === "" ? void 0 : value,
+  schema
+);
 var envSchema = z5.object({
-  PORT: z5.coerce.number().default(3001),
-  NODE_ENV: z5.enum(["development", "production", "test"]).default("development"),
-  DATABASE_URL: z5.string().default("file:./dev.db"),
+  PORT: blankAsUndefined(z5.coerce.number().default(3001)),
+  NODE_ENV: blankAsUndefined(z5.enum(["development", "production", "test"]).default("development")),
+  DATABASE_URL: blankAsUndefined(z5.string().default("file:./dev.db")),
   GMAIL_USER: z5.string().email().optional().or(z5.literal("")).default(""),
   GMAIL_APP_PASSWORD: z5.string().optional().default(""),
-  DEFAULT_FROM_NAME: z5.string().default("Campaign Manager"),
-  APP_ENCRYPTION_KEY: z5.string().min(16).default("12345678901234567890123456789012"),
-  SEND_DELAY_MS: z5.coerce.number().min(100).default(2e3),
-  MAX_RETRIES: z5.coerce.number().min(0).max(10).default(3),
-  MAX_RECIPIENTS: z5.coerce.number().min(1).max(100).default(100)
+  DEFAULT_FROM_NAME: blankAsUndefined(z5.string().default("Campaign Manager")),
+  APP_ENCRYPTION_KEY: blankAsUndefined(z5.string().min(16).default("12345678901234567890123456789012")),
+  SEND_DELAY_MS: blankAsUndefined(z5.coerce.number().min(100).default(2e3)),
+  MAX_RETRIES: blankAsUndefined(z5.coerce.number().min(0).max(10).default(3)),
+  MAX_RECIPIENTS: blankAsUndefined(z5.coerce.number().min(1).max(100).default(100))
 });
 var parsed = envSchema.safeParse(process.env);
 if (!parsed.success) {
