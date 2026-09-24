@@ -171,6 +171,7 @@ export const PreviewApproval: React.FC<PreviewApprovalProps> = ({ campaignId, on
 
       const updatedSettings = await api.getSettings();
       setSettings(updatedSettings);
+      window.dispatchEvent(new Event('smtp-settings-updated'));
     } catch (err: unknown) {
       setCredsError(err instanceof Error ? err.message : 'Failed to save credentials.');
     } finally {

@@ -1139,6 +1139,7 @@ import fs5 from "fs";
 // src/server/config.ts
 import dotenv from "dotenv";
 import { z as z5 } from "zod";
+import crypto from "node:crypto";
 dotenv.config();
 var blankAsUndefined = (schema) => z5.preprocess(
   (value) => typeof value === "string" && value.trim() === "" ? void 0 : value,
@@ -1189,6 +1190,51 @@ function clearRuntimeCredentials() {
   process.env.GMAIL_APP_PASSWORD = "";
 }
 
+// src/server/services/smtpCredentials.ts
+var CREDENTIAL_ID = "default";
+function encryptionKey() {
+  return crypto.createHash("sha256").update(config.APP_ENCRYPTION_KEY).digest();
+}
+function encrypt(value) {
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-256-gcm", encryptionKey(), iv);
+  const encrypted = Buffer.concat([cipher.update(value, "utf8"), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return [iv, tag, encrypted].map((part) => part.toString("base64")).join(":");
+}
+function decrypt(value) {
+  const [ivValue, tagValue, encryptedValue] = value.split(":");
+  if (!ivValue || !tagValue || !encryptedValue) throw new Error("Stored SMTP credentials are invalid.");
+  const decipher = crypto.createDecipheriv("aes-256-gcm", encryptionKey(), Buffer.from(ivValue, "base64"));
+  decipher.setAuthTag(Buffer.from(tagValue, "base64"));
+  return Buffer.concat([decipher.update(Buffer.from(encryptedValue, "base64")), decipher.final()]).toString("utf8");
+}
+async function saveSmtpCredentials(gmailUser, appPassword, defaultFromName) {
+  await prisma.smtpCredential.upsert({
+    where: { id: CREDENTIAL_ID },
+    create: {
+      id: CREDENTIAL_ID,
+      gmailUserEncrypted: encrypt(gmailUser),
+      appPasswordEncrypted: encrypt(appPassword),
+      defaultFromName: defaultFromName?.trim() || null
+    },
+    update: {
+      gmailUserEncrypted: encrypt(gmailUser),
+      appPasswordEncrypted: encrypt(appPassword),
+      defaultFromName: defaultFromName?.trim() || null
+    }
+  });
+}
+async function loadSmtpCredentials() {
+  const stored = await prisma.smtpCredential.findUnique({ where: { id: CREDENTIAL_ID } });
+  if (!stored) return false;
+  updateRuntimeCredentials(decrypt(stored.gmailUserEncrypted), decrypt(stored.appPasswordEncrypted), stored.defaultFromName || void 0);
+  return true;
+}
+async function deleteSmtpCredentials() {
+  await prisma.smtpCredential.deleteMany({ where: { id: CREDENTIAL_ID } });
+}
+
 // src/server/services/mailer.ts
 function classifySmtpError(err) {
   if (!err || typeof err !== "object") {
@@ -1232,12 +1278,27 @@ var isServerless2 = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTIO
 function resetTransporter() {
   transporterInstance = null;
 }
-function getTransporter() {
+function hasLiveCredentials() {
+  return Boolean(config.GMAIL_USER && config.GMAIL_APP_PASSWORD && !config.GMAIL_APP_PASSWORD.startsWith("mock_"));
+}
+async function hasLiveSmtpCredentials() {
+  try {
+    await loadSmtpCredentials();
+  } catch (err) {
+    console.error("Unable to load stored SMTP credentials:", err);
+  }
+  return hasLiveCredentials();
+}
+async function getTransporter() {
   if (transporterInstance) {
     return transporterInstance;
   }
-  const hasLiveCredentials = Boolean(config.GMAIL_USER) && Boolean(config.GMAIL_APP_PASSWORD) && !config.GMAIL_APP_PASSWORD.startsWith("mock_");
-  if (!hasLiveCredentials) {
+  try {
+    await loadSmtpCredentials();
+  } catch (err) {
+    console.error("Unable to load stored SMTP credentials:", err);
+  }
+  if (!hasLiveCredentials()) {
     console.warn("\u26A0\uFE0F GMAIL_APP_PASSWORD not set or using mock credentials. Initializing mock mailer transport.");
     transporterInstance = nodemailer.createTransport({
       streamTransport: true,
@@ -1265,12 +1326,12 @@ function getTransporter() {
 }
 async function verifySmtpConnection() {
   try {
-    const transporter = getTransporter();
-    if (config.GMAIL_APP_PASSWORD.startsWith("mock_") || !config.GMAIL_USER) {
+    const transporter = await getTransporter();
+    if (!hasLiveCredentials()) {
       return {
-        connected: true,
-        category: "SUCCESS",
-        message: "Mock mailer initialized for local development and automated testing."
+        connected: false,
+        category: "AUTH_ERROR",
+        message: "Gmail SMTP credentials are not configured. Mock Mode cannot deliver email."
       };
     }
     await transporter.verify();
@@ -1343,31 +1404,29 @@ function processEmailImages(html) {
 }
 async function sendPersonalizedEmail(options) {
   const maskedTo = maskEmail(options.to);
-  const fromName = options.senderName?.trim() || config.DEFAULT_FROM_NAME;
-  const fromAddress = config.GMAIL_USER || "campaign@localhost";
-  const fromHeader = `"${fromName}" <${fromAddress}>`;
-  let finalHtml = options.html;
-  let attachments = [];
-  if (options.html) {
-    const processed = processEmailImages(options.html);
-    finalHtml = processed.html;
-    attachments = processed.attachments;
-  }
-  const mailOptions = {
-    from: fromHeader,
-    to: options.to,
-    subject: options.subject,
-    text: options.text,
-    replyTo: options.replyTo || fromAddress
-  };
-  if (finalHtml) {
-    mailOptions.html = finalHtml;
-  }
-  if (attachments.length > 0) {
-    mailOptions.attachments = attachments;
-  }
   try {
-    const transporter = getTransporter();
+    if (!await hasLiveSmtpCredentials() && config.NODE_ENV !== "test") {
+      return { success: false, category: "AUTH_ERROR", message: "Gmail SMTP credentials are not configured. Mock Mode does not deliver email." };
+    }
+    const transporter = await getTransporter();
+    const fromName = options.senderName?.trim() || config.DEFAULT_FROM_NAME;
+    const fromAddress = config.GMAIL_USER || "campaign@localhost";
+    let finalHtml = options.html;
+    let attachments = [];
+    if (options.html) {
+      const processed = processEmailImages(options.html);
+      finalHtml = processed.html;
+      attachments = processed.attachments;
+    }
+    const mailOptions = {
+      from: `"${fromName}" <${fromAddress}>`,
+      to: options.to,
+      subject: options.subject,
+      text: options.text,
+      replyTo: options.replyTo || fromAddress,
+      html: finalHtml,
+      attachments: attachments.length > 0 ? attachments : void 0
+    };
     const info = await transporter.sendMail(mailOptions);
     console.log(`\u2705 Mail dispatched successfully to ${maskedTo} [MessageId: ${info.messageId || "MOCK-ID"}] (${attachments.length} inline images attached)`);
     return {
@@ -2367,31 +2426,14 @@ suppressionRouter.delete("/:id", async (req, res, next) => {
 // src/server/routes/settings.ts
 import { Router as Router8 } from "express";
 import { z as z8 } from "zod";
-import fs6 from "fs";
-import path5 from "path";
 var settingsRouter = Router8();
-function persistToEnvFile(user, pass, fromName) {
-  try {
-    const envPath = path5.resolve(process.cwd(), ".env");
-    if (fs6.existsSync(envPath)) {
-      let content = fs6.readFileSync(envPath, "utf-8");
-      content = content.replace(/^GMAIL_USER=.*$/m, `GMAIL_USER=${user}`);
-      content = content.replace(/^GMAIL_APP_PASSWORD=.*$/m, `GMAIL_APP_PASSWORD=${pass}`);
-      if (fromName) {
-        content = content.replace(/^DEFAULT_FROM_NAME=.*$/m, `DEFAULT_FROM_NAME=${fromName}`);
-      }
-      fs6.writeFileSync(envPath, content, "utf-8");
-    }
-  } catch (err) {
-    console.error("Failed to update .env on disk:", err);
-  }
-}
 settingsRouter.get("/", async (_req, res, next) => {
   try {
-    const isMock = config.GMAIL_APP_PASSWORD.startsWith("mock_") || !config.GMAIL_USER;
+    await loadSmtpCredentials();
+    const isMock = !config.GMAIL_USER || !config.GMAIL_APP_PASSWORD || config.GMAIL_APP_PASSWORD.startsWith("mock_");
     res.json({
       gmailUserMasked: maskEmail(config.GMAIL_USER),
-      isAppPasswordConfigured: Boolean(config.GMAIL_APP_PASSWORD) && !config.GMAIL_APP_PASSWORD.startsWith("mock_"),
+      isAppPasswordConfigured: Boolean(config.GMAIL_USER) && Boolean(config.GMAIL_APP_PASSWORD) && !config.GMAIL_APP_PASSWORD.startsWith("mock_"),
       isMockMode: isMock,
       defaultFromName: config.DEFAULT_FROM_NAME,
       sendDelayMs: config.SEND_DELAY_MS,
@@ -2413,7 +2455,7 @@ settingsRouter.post("/credentials", async (req, res, next) => {
     const { gmailUser, gmailAppPassword, defaultFromName } = saveCredentialsSchema.parse(req.body);
     const cleanPassword = gmailAppPassword.replace(/\s+/g, "");
     updateRuntimeCredentials(gmailUser, cleanPassword, defaultFromName);
-    persistToEnvFile(gmailUser, cleanPassword, defaultFromName);
+    await saveSmtpCredentials(gmailUser.trim(), cleanPassword, defaultFromName);
     resetTransporter();
     const verifyResult = await verifySmtpConnection();
     await logAuditEvent("CREDENTIALS_UPDATED_VIA_UI", {
@@ -2435,7 +2477,7 @@ settingsRouter.post("/credentials", async (req, res, next) => {
 settingsRouter.delete("/credentials", async (req, res, next) => {
   try {
     clearRuntimeCredentials();
-    persistToEnvFile("", "");
+    await deleteSmtpCredentials();
     resetTransporter();
     await logAuditEvent("CREDENTIALS_REMOVED_VIA_UI", {}, void 0, req.ip);
     res.json({

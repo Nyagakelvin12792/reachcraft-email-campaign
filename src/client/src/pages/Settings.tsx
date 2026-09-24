@@ -94,6 +94,7 @@ export const Settings: React.FC = () => {
       }
 
       await loadSettingsAndSuppression();
+      window.dispatchEvent(new Event('smtp-settings-updated'));
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to save credentials.');
     } finally {
@@ -113,6 +114,7 @@ export const Settings: React.FC = () => {
       setSmtpResult(null);
       setSuccessMessage('Credentials removed successfully. Reverted to Mock Mode.');
       await loadSettingsAndSuppression();
+      window.dispatchEvent(new Event('smtp-settings-updated'));
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to clear credentials.');
     }

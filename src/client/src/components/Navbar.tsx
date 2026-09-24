@@ -11,9 +11,15 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate }) => {
   const [settings, setSettings] = useState<SettingsResponse | null>(null);
 
   useEffect(() => {
-    api.getSettings()
-      .then(setSettings)
-      .catch((err) => console.error('Failed to fetch settings:', err));
+    const refreshSettings = () => {
+      api.getSettings()
+        .then(setSettings)
+        .catch((err) => console.error('Failed to fetch settings:', err));
+    };
+
+    refreshSettings();
+    window.addEventListener('smtp-settings-updated', refreshSettings);
+    return () => window.removeEventListener('smtp-settings-updated', refreshSettings);
   }, []);
 
   return (

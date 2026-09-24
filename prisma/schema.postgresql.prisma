@@ -128,3 +128,10 @@ model AuditEvent {
   createdAt  DateTime  @default(now())
 }
 
+model SmtpCredential {
+  id                   String   @id @default("default")
+  gmailUserEncrypted   String
+  appPasswordEncrypted String
+  defaultFromName      String?
+  updatedAt            DateTime @updatedAt
+}

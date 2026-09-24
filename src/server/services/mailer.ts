@@ -2,6 +2,7 @@ import nodemailer, { Transporter } from 'nodemailer';
 import path from 'path';
 import fs from 'fs';
 import { config, maskEmail } from '../config.js';
+import { loadSmtpCredentials } from './smtpCredentials.js';
 
 export type SmtpCategory =
   | 'SUCCESS'
@@ -110,21 +111,39 @@ export function resetTransporter(): void {
   transporterInstance = null;
 }
 
+function hasLiveCredentials(): boolean {
+  return Boolean(
+    config.GMAIL_USER &&
+    config.GMAIL_APP_PASSWORD &&
+    !config.GMAIL_APP_PASSWORD.startsWith('mock_')
+  );
+}
+
+export async function hasLiveSmtpCredentials(): Promise<boolean> {
+  try {
+    await loadSmtpCredentials();
+  } catch (err) {
+    console.error('Unable to load stored SMTP credentials:', err);
+  }
+  return hasLiveCredentials();
+}
+
 /**
  * Creates or retrieves the configured Nodemailer transporter
  */
-export function getTransporter(): Transporter {
+export async function getTransporter(): Promise<Transporter> {
   if (transporterInstance) {
     return transporterInstance;
   }
 
-  // Check if live Gmail credentials are provided
-  const hasLiveCredentials =
-    Boolean(config.GMAIL_USER) &&
-    Boolean(config.GMAIL_APP_PASSWORD) &&
-    !config.GMAIL_APP_PASSWORD.startsWith('mock_');
+  try {
+    await loadSmtpCredentials();
+  } catch (err) {
+    console.error('Unable to load stored SMTP credentials:', err);
+  }
 
-  if (!hasLiveCredentials) {
+  // Check if live Gmail credentials are provided
+  if (!hasLiveCredentials()) {
     // In mock/development mode, create a JSON stream transporter or test transporter
     console.warn('⚠️ GMAIL_APP_PASSWORD not set or using mock credentials. Initializing mock mailer transport.');
     transporterInstance = nodemailer.createTransport({
@@ -157,13 +176,13 @@ export function getTransporter(): Transporter {
  */
 export async function verifySmtpConnection(): Promise<{ connected: boolean; category?: SmtpCategory; message: string }> {
   try {
-    const transporter = getTransporter();
+    const transporter = await getTransporter();
     // In mock mode, stream transporter doesn't verify network
-    if (config.GMAIL_APP_PASSWORD.startsWith('mock_') || !config.GMAIL_USER) {
+    if (!hasLiveCredentials()) {
       return {
-        connected: true,
-        category: 'SUCCESS',
-        message: 'Mock mailer initialized for local development and automated testing.',
+        connected: false,
+        category: 'AUTH_ERROR',
+        message: 'Gmail SMTP credentials are not configured. Mock Mode cannot deliver email.',
       };
     }
     await transporter.verify();
@@ -274,37 +293,37 @@ export function processEmailImages(html: string): ProcessedHtmlResult {
  */
 export async function sendPersonalizedEmail(options: SendMailOptions): Promise<SendMailResult> {
   const maskedTo = maskEmail(options.to);
-  const fromName = options.senderName?.trim() || config.DEFAULT_FROM_NAME;
-  const fromAddress = config.GMAIL_USER || 'campaign@localhost';
-  const fromHeader = `"${fromName}" <${fromAddress}>`;
-
-  let finalHtml = options.html;
-  let attachments: Array<{ filename: string; path: string; cid: string }> = [];
-
-  if (options.html) {
-    const processed = processEmailImages(options.html);
-    finalHtml = processed.html;
-    attachments = processed.attachments;
-  }
-
-  const mailOptions: nodemailer.SendMailOptions = {
-    from: fromHeader,
-    to: options.to,
-    subject: options.subject,
-    text: options.text,
-    replyTo: options.replyTo || fromAddress,
-  };
-
-  if (finalHtml) {
-    mailOptions.html = finalHtml;
-  }
-
-  if (attachments.length > 0) {
-    mailOptions.attachments = attachments;
-  }
 
   try {
-    const transporter = getTransporter();
+    if (!(await hasLiveSmtpCredentials()) && config.NODE_ENV !== 'test') {
+      return {
+        success: false,
+        category: 'AUTH_ERROR',
+        message: 'Gmail SMTP credentials are not configured. Mock Mode does not deliver email.',
+      };
+    }
+    const transporter = await getTransporter();
+    const fromName = options.senderName?.trim() || config.DEFAULT_FROM_NAME;
+    const fromAddress = config.GMAIL_USER || 'campaign@localhost';
+    let finalHtml = options.html;
+    let attachments: Array<{ filename: string; path: string; cid: string }> = [];
+
+    if (options.html) {
+      const processed = processEmailImages(options.html);
+      finalHtml = processed.html;
+      attachments = processed.attachments;
+    }
+
+    const mailOptions: nodemailer.SendMailOptions = {
+      from: `"${fromName}" <${fromAddress}>`,
+      to: options.to,
+      subject: options.subject,
+      text: options.text,
+      replyTo: options.replyTo || fromAddress,
+      html: finalHtml,
+      attachments: attachments.length > 0 ? attachments : undefined,
+    };
+
     const info = await transporter.sendMail(mailOptions);
 
     console.log(`✅ Mail dispatched successfully to ${maskedTo} [MessageId: ${info.messageId || 'MOCK-ID'}] (${attachments.length} inline images attached)`);
